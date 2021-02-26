@@ -1,0 +1,24 @@
+{
+  "name": "spab-client",
+  "version": "0.0.1",
+  "main": "dist/index.js",
+  "scripts": {
+    "compile": "tsc && node dist/index.js",
+    "dev": "nodemon -e ts  --exec \"npm run compile\""
+  },
+  "dependencies": {
+    "fs-extra": "^9.0.1",
+    "socket.io-client": "^3.1.1",
+    "tslib": "^1.14.1",
+    "typescript": "^4.1.3"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^9.0.6",
+    "@types/node": "^13.13.40",
+    "eslint": "^7.19.0",
+    "nodemon": "^2.0.7"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
