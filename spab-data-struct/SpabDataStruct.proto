@@ -1,0 +1,11 @@
+package SpabDataStruct;
+syntax = "proto3";
+
+message CameraData {
+    string name = 1;
+    bytes buf = 2;
+}
+message SensorData {
+    double voltage = 1;
+}
+

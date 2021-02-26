@@ -1,5 +1,8 @@
+const path = require('path');
+
 module.exports = function() {
     this.DEV = true;
+    this.LOG_DB_PATH = path.resolve(__dirname, './log_db');
 
     this.SERVER_URL = 'wss://spab.toms.directory';
     this.CLIENT_API_PATH = '/api/client_ws/';
@@ -17,5 +20,8 @@ module.exports = function() {
     ];
 
     this.CAM_ONLINE_INTERVAL = 500;
-    this.CAM_OFFLINE_INTERVAL = 5 * 60 * 1000;
+    this.CAM_OFFLINE_INTERVAL = 1 * 60 * 1000;
+
+    this.SNR_ONLINE_INTERVAL = 100;
+    this.SNR_OFFLINE_INTERVAL = 1 * 60 * 1000;
 }

@@ -1,0 +1,13 @@
+{
+  "name": "spab-data-structure",
+  "version": "1.0.0",
+  "description": "",
+  "author": "",
+  "license": "ISC",
+  "scripts": {
+    "build": "pbjs -t static-module -w commonjs -o SpabDataStruct.js SpabDataStruct.proto && pbts -o SpabDataStruct.d.ts SpabDataStruct.js"
+  },
+  "dependencies": {
+    "protobufjs": "^6.10.2"
+  }
+}
