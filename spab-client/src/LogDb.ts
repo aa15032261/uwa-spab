@@ -12,7 +12,7 @@ export class LogDb {
 
     private _dbCount = 0;
 
-    private _dbErrorHandler = (res: any, err: any) => {
+    private _dbErrorHandler = (err: any) => {
         if (err) {
             console.log(err);
         }
@@ -33,7 +33,10 @@ export class LogDb {
                 'CREATE TABLE IF NOT EXISTS OfflineCache (id INTEGER, timestamp INTEGER, type TEXT, data BLOB);',
                 this._dbErrorHandler
             );
+
             this._ready = true;
+
+            this.vacuum();
         });
         this._db.on('error', (err: any) => {
             console.log(err);
@@ -56,7 +59,7 @@ export class LogDb {
         return randNum;
     }
 
-    public add(type: 'camera' | 'sensor', data: Uint8Array) {
+    public add(type: string, data: Uint8Array) {
         if (!this._ready) {
             return;
         }
@@ -71,7 +74,11 @@ export class LogDb {
         );
     }
 
-    public remove(id: number, timestamp: number, type: 'camera' | 'sensor') {
+    public remove(id: number, timestamp: number, type: string) {
+        if (!this._ready) {
+            return;
+        }
+
         this._db.run(
             'DELETE FROM OfflineCache WHERE id=? AND timestamp=? AND type=?',
             [id, timestamp, type],
@@ -79,19 +86,33 @@ export class LogDb {
         );
     }
 
-    public async getFirst(): Promise<{id: number, timestamp: number, type: 'camera' | 'sensor', obj: any} | null | undefined>
-    {
+    public async getFirst(): Promise<SpabDataStruct.ILog | null | undefined> {
+        if (!this._ready) {
+            return;
+        }
+
         return new Promise((resolve, reject) => {
             this._db.get(
                 'SELECT id, timestamp, type, data from OfflineCache order by timestamp limit 1',
-                (res: any, err: any) => {
+                (err: any, row: any) => {
                     if (err) {
                         reject(err);
                     }
 
-                    resolve(res);
+                    resolve(row);
                 }
             );
         });
+    }
+
+    public vacuum() {
+        if (!this._ready) {
+            return;
+        }
+
+        this._db.run(
+            'VACUUM',
+            this._dbErrorHandler
+        )
     }
 }
