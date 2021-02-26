@@ -14,6 +14,7 @@ function main() {
         rejectUnauthorized: false,
         autoConnect: true,
         reconnectionDelayMax: 10000,
+        reconnectionAttempts: Infinity,
         auth: {
             token: CLIENT_API_TOKEN
         },
@@ -33,20 +34,20 @@ function main() {
     }
     let isOnline = true;
     let cameraTimer;
-    let cameraLoop = (socket, timeout) => {
+    let cameraLoop = (timeout) => {
         if (cameraTimer) {
             clearTimeout(cameraTimer);
         }
-        let camData = [];
-        for (let camera of cameras) {
-            if (camera.buf.length > 0) {
-                camData.push({
-                    name: camera.name,
-                    buf: camera.buf
-                });
-            }
-        }
         if (!socket.disconnected) {
+            let camData = [];
+            for (let camera of cameras) {
+                if (camera.buf.length > 0) {
+                    camData.push({
+                        name: camera.name,
+                        buf: camera.buf
+                    });
+                }
+            }
             socket.emit('camData', camData);
         }
         let _timeout = CAM_OFFLINE_INTERVAL;
@@ -59,11 +60,13 @@ function main() {
             _timeout = timeout;
         }
         cameraTimer = setTimeout(() => {
-            cameraLoop(socket);
+            cameraLoop();
         }, _timeout);
     };
-    socket.on('connect', () => {
-        cameraLoop(socket, 1);
+    let connectHandler = () => {
+        console.log('connect');
+        socket.sendBuffer = [];
+        cameraLoop(1);
         socket.on('isOnline', function (isOnline) {
             if (isOnline === true) {
                 isOnline = true;
@@ -72,14 +75,17 @@ function main() {
                 isOnline = false;
             }
         });
-    });
-    socket.on('connect_error', (err) => {
+    };
+    let disconnectHandler = (err) => {
         isOnline = false;
         if (cameraTimer) {
             clearTimeout(cameraTimer);
         }
         cameraTimer = null;
         console.log(err);
-    });
+    };
+    socket.on('connect', connectHandler);
+    socket.on('reconnect', connectHandler);
+    socket.on('connect_error', disconnectHandler);
 }
 main();
