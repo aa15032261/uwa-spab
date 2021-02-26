@@ -16,7 +16,7 @@ export class MainController {
     private _logDb: LogDb;
 
     private _socket: Socket;
-    private _isOnline = false;
+    private _isPolling = false;
 
     private _syncTimer: NodeJS.Timeout | null = null;
 
@@ -80,14 +80,14 @@ export class MainController {
         
         this._restartEventLoop();
 
-        this._socket.on('isOnline', (isOnline: boolean) => {
-            this.isOnline = isOnline;
+        this._socket.on('isPolling', (isPolling: boolean) => {
+            this.isPolling = isPolling;
         });
     }
 
     private _disconnectHandler(err: any) {
         console.log('server disconnected');
-        this.isOnline = false;
+        this.isPolling = false;
     };
 
     private _restartEventLoop() {
@@ -96,13 +96,13 @@ export class MainController {
     }
 
 
-    set isOnline(isOnline: boolean) {
-        if (this._isOnline !== isOnline) {
+    set isPolling(isPolling: boolean) {
+        if (this._isPolling !== isPolling) {
 
-            this._isOnline = isOnline;
+            this._isPolling = isPolling;
 
             for (let camera of this._cameras) {
-                if (isOnline) {
+                if (isPolling) {
                     camera.camControl.imgInterval = CAM_ONLINE_INTERVAL;
                 } else {
                     camera.camControl.imgInterval = -1;
@@ -110,6 +110,15 @@ export class MainController {
             }
     
             this._restartEventLoop();
+        }
+    }
+
+    private _checkOnline(): boolean {
+        if (this._socket.connected) {
+            return true;
+        } else {
+            this.isPolling = false;
+            return false;
         }
     }
 
@@ -124,7 +133,7 @@ export class MainController {
     }
 
     private _handleNewData(type: 'camera' | 'sensor', data: Buffer) {
-        if (this._socket.connected) {
+        if (this._checkOnline()) {
             let log: SpabDataStruct.ILog = {
                 timestamp: (new Date()).getTime(),
                 type: type,
@@ -137,19 +146,18 @@ export class MainController {
     }
 
     private _cameraLoop() {
-        console.log('cam loop');
         if (this._cameraTimer) {
             clearTimeout(this._cameraTimer);
         }
 
         let _timeout: number;
-        if (this._isOnline) {
+        if (this._isPolling) {
             _timeout = CAM_ONLINE_INTERVAL;
         } else {
             _timeout = CAM_OFFLINE_INTERVAL;
         }
 
-        if (!this._isOnline) {
+        if (!this._isPolling) {
             for (let camera of this._cameras) {
                 camera.camControl.takePicture();
             }
@@ -167,7 +175,7 @@ export class MainController {
 
         let _timeout: number;
 
-        if (this._isOnline) {
+        if (this._isPolling) {
             _timeout = SNR_ONLINE_INTERVAL;
         } else {
             _timeout = SNR_OFFLINE_INTERVAL;
@@ -181,41 +189,42 @@ export class MainController {
         }, _timeout);
     }
 
+
+
     private _sync() {
         if (!this._syncTimer) {
             this._syncTimer = setTimeout(async () => {
-                await this._syncOne();
+                await this._syncLoop();
             }, 1);
         }
     }
 
-    private async _syncOne() {
+    private async _syncLoop() {
         try {
             while (1) {
                 let log = await this._logDb.getFirst();
 
-                if (log && this._socket.connected) {
-
+                if (log && this._checkOnline()) {
                     await (new Promise((resolve, reject) => {
                         let _timer = setTimeout(() => {
                             reject('sync timeout');
                         }, 30000);
 
-                        this._socket.emit('data', log, (ack: boolean) => {
+                        this._socket.emit('log', log, (ack: boolean) => {
                             clearTimeout(_timer);
 
                             this._logDb.remove(
-                                log!.id,
-                                log!.timestamp,
-                                log!.type
+                                log!.id!,
+                                log!.timestamp!,
+                                log!.type!
                             );
 
                             resolve(undefined);
                         });
                     }));
-
                 } else {
                     this._syncTimer = null;
+                    this._logDb.vacuum();
                     break;
                 }
             }
@@ -223,12 +232,12 @@ export class MainController {
             console.log(e);
 
             this._syncTimer = setTimeout(async () => {
-                if (this._socket.connected) {
-                    await this._syncOne();
+                if (this._checkOnline()) {
+                    await this._syncLoop();
                 } else {
                     this._syncTimer = null;
                 }
-            }, 5000);
+            }, 1000);
         }
     }
 }
