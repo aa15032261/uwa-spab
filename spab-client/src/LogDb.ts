@@ -30,7 +30,7 @@ export class LogDb {
 
             // initialise db structure
             this._db.run(
-                'CREATE TABLE IF NOT EXISTS OfflineCache (id TEXT PRIMARY KEY, timestamp INTEGER, type TEXT, data BLOB);',
+                'CREATE TABLE IF NOT EXISTS OfflineCache (id INTEGER, timestamp INTEGER, type TEXT, data BLOB);',
                 this._dbErrorHandler
             );
             this._ready = true;
@@ -40,7 +40,7 @@ export class LogDb {
         });
     }
 
-    private _4bytesRand(): string {
+    private _4bytesRand(): number {
         let randBytes = crypto.randomBytes(3);
 
         this._dbCount++;
@@ -53,25 +53,16 @@ export class LogDb {
         randNum |= randBytes[2] << 16;
         randNum |= this._dbCount << 24;
 
-        return randNum.toString(36);
+        return randNum;
     }
 
-    public add(type: 'camera' | 'sensor', obj: any) {
+    public add(type: 'camera' | 'sensor', data: Uint8Array) {
         if (!this._ready) {
             return;
         }
 
+        let id = this._4bytesRand();
         let timestamp = (new Date()).getTime();
-
-        let id = timestamp.toString(36) + '-' + type + '-' + this._4bytesRand();
-
-        let data = Buffer.alloc(0);
-
-        if (type === 'camera') {
-            data = Buffer.from(SpabDataStruct.CameraData.encode(obj).finish());
-        } else if (type === 'sensor') {
-            data = Buffer.from(SpabDataStruct.SensorData.encode(obj).finish());
-        }
 
         this._db.run(
             'INSERT INTO OfflineCache VALUES (?, ?, ?, ?)',
@@ -80,11 +71,27 @@ export class LogDb {
         );
     }
 
-    public remove(logId: string) {
-        
+    public remove(id: number, timestamp: number, type: 'camera' | 'sensor') {
+        this._db.run(
+            'DELETE FROM OfflineCache WHERE id=? AND timestamp=? AND type=?',
+            [id, timestamp, type],
+            this._dbErrorHandler
+        );
     }
 
-    public getFirst(type?: string) {
-        
+    public async getFirst(): Promise<{id: number, timestamp: number, type: 'camera' | 'sensor', obj: any} | null | undefined>
+    {
+        return new Promise((resolve, reject) => {
+            this._db.get(
+                'SELECT id, timestamp, type, data from OfflineCache order by timestamp limit 1',
+                (res: any, err: any) => {
+                    if (err) {
+                        reject(err);
+                    }
+
+                    resolve(res);
+                }
+            );
+        });
     }
 }

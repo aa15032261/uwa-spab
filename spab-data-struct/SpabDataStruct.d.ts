@@ -2,6 +2,114 @@ import * as $protobuf from "protobufjs";
 /** Namespace SpabDataStruct. */
 export namespace SpabDataStruct {
 
+    /** Properties of a Log. */
+    interface ILog {
+
+        /** Log id */
+        id?: (number|null);
+
+        /** Log timestamp */
+        timestamp?: (number|null);
+
+        /** Log type */
+        type?: (string|null);
+
+        /** Log data */
+        data?: (Uint8Array|null);
+    }
+
+    /** Represents a Log. */
+    class Log implements ILog {
+
+        /**
+         * Constructs a new Log.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: SpabDataStruct.ILog);
+
+        /** Log id. */
+        public id: number;
+
+        /** Log timestamp. */
+        public timestamp: number;
+
+        /** Log type. */
+        public type: string;
+
+        /** Log data. */
+        public data: Uint8Array;
+
+        /**
+         * Creates a new Log instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns Log instance
+         */
+        public static create(properties?: SpabDataStruct.ILog): SpabDataStruct.Log;
+
+        /**
+         * Encodes the specified Log message. Does not implicitly {@link SpabDataStruct.Log.verify|verify} messages.
+         * @param message Log message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: SpabDataStruct.ILog, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified Log message, length delimited. Does not implicitly {@link SpabDataStruct.Log.verify|verify} messages.
+         * @param message Log message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: SpabDataStruct.ILog, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a Log message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns Log
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): SpabDataStruct.Log;
+
+        /**
+         * Decodes a Log message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns Log
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): SpabDataStruct.Log;
+
+        /**
+         * Verifies a Log message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a Log message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns Log
+         */
+        public static fromObject(object: { [k: string]: any }): SpabDataStruct.Log;
+
+        /**
+         * Creates a plain object from a Log message. Also converts values to other types if specified.
+         * @param message Log
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: SpabDataStruct.Log, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this Log to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
     /** Properties of a CameraData. */
     interface ICameraData {
 

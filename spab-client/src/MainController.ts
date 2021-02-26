@@ -5,7 +5,6 @@ import { CamControl } from "./CamControl";
 import { io, Socket } from "socket.io-client";
 import { LogDb } from './LogDb';
 import { SpabDataStruct } from "./../../spab-data-struct/SpabDataStruct";
-import { stringify } from 'querystring';
 
 interface Camera {
     name: string, 
@@ -18,6 +17,8 @@ export class MainController {
 
     private _socket: Socket;
     private _isOnline = false;
+
+    private _syncTimer: NodeJS.Timeout | null = null;
 
     private _cameras: Camera[] = [];
     private _cameraTimer: NodeJS.Timeout | null = null;
@@ -74,6 +75,9 @@ export class MainController {
         console.log('server connected');
 
         this._socket.sendBuffer = [];
+
+        this._sync();
+        
         this._restartEventLoop();
 
         this._socket.on('isOnline', (isOnline: boolean) => {
@@ -109,15 +113,26 @@ export class MainController {
         }
     }
 
-
     private _handleNewCameraData(camData: SpabDataStruct.ICameraData) {
+        let data = Buffer.from(SpabDataStruct.CameraData.encode(camData).finish());
+        this._handleNewData('camera', data);
+    }
+
+    private _handleNewSensorData(snrData: SpabDataStruct.ISensorData) {
+        let data = Buffer.from(SpabDataStruct.SensorData.encode(snrData).finish());
+        this._handleNewData('sensor', data);
+    }
+
+    private _handleNewData(type: 'camera' | 'sensor', data: Buffer) {
         if (this._socket.connected) {
-            this._socket.emit('camData', {
+            let log: SpabDataStruct.ILog = {
                 timestamp: (new Date()).getTime(),
-                data: camData
-            });
+                type: type,
+                data: data
+            };
+            this._socket.emit('log', log);
         } else {
-            this._logDb.add('camera', camData);
+            this._logDb.add(type, data);
         }
     }
 
@@ -165,5 +180,55 @@ export class MainController {
             this._sensorLoop();
         }, _timeout);
     }
-}
 
+    private _sync() {
+        if (!this._syncTimer) {
+            this._syncTimer = setTimeout(async () => {
+                await this._syncOne();
+            }, 1);
+        }
+    }
+
+    private async _syncOne() {
+        try {
+            while (1) {
+                let log = await this._logDb.getFirst();
+
+                if (log && this._socket.connected) {
+
+                    await (new Promise((resolve, reject) => {
+                        let _timer = setTimeout(() => {
+                            reject('sync timeout');
+                        }, 30000);
+
+                        this._socket.emit('data', log, (ack: boolean) => {
+                            clearTimeout(_timer);
+
+                            this._logDb.remove(
+                                log!.id,
+                                log!.timestamp,
+                                log!.type
+                            );
+
+                            resolve(undefined);
+                        });
+                    }));
+
+                } else {
+                    this._syncTimer = null;
+                    break;
+                }
+            }
+        } catch (e) {
+            console.log(e);
+
+            this._syncTimer = setTimeout(async () => {
+                if (this._socket.connected) {
+                    await this._syncOne();
+                } else {
+                    this._syncTimer = null;
+                }
+            }, 5000);
+        }
+    }
+}

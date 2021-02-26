@@ -18,6 +18,269 @@ $root.SpabDataStruct = (function() {
      */
     var SpabDataStruct = {};
 
+    SpabDataStruct.Log = (function() {
+
+        /**
+         * Properties of a Log.
+         * @memberof SpabDataStruct
+         * @interface ILog
+         * @property {number|null} [id] Log id
+         * @property {number|null} [timestamp] Log timestamp
+         * @property {string|null} [type] Log type
+         * @property {Uint8Array|null} [data] Log data
+         */
+
+        /**
+         * Constructs a new Log.
+         * @memberof SpabDataStruct
+         * @classdesc Represents a Log.
+         * @implements ILog
+         * @constructor
+         * @param {SpabDataStruct.ILog=} [properties] Properties to set
+         */
+        function Log(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * Log id.
+         * @member {number} id
+         * @memberof SpabDataStruct.Log
+         * @instance
+         */
+        Log.prototype.id = 0;
+
+        /**
+         * Log timestamp.
+         * @member {number} timestamp
+         * @memberof SpabDataStruct.Log
+         * @instance
+         */
+        Log.prototype.timestamp = 0;
+
+        /**
+         * Log type.
+         * @member {string} type
+         * @memberof SpabDataStruct.Log
+         * @instance
+         */
+        Log.prototype.type = "";
+
+        /**
+         * Log data.
+         * @member {Uint8Array} data
+         * @memberof SpabDataStruct.Log
+         * @instance
+         */
+        Log.prototype.data = $util.newBuffer([]);
+
+        /**
+         * Creates a new Log instance using the specified properties.
+         * @function create
+         * @memberof SpabDataStruct.Log
+         * @static
+         * @param {SpabDataStruct.ILog=} [properties] Properties to set
+         * @returns {SpabDataStruct.Log} Log instance
+         */
+        Log.create = function create(properties) {
+            return new Log(properties);
+        };
+
+        /**
+         * Encodes the specified Log message. Does not implicitly {@link SpabDataStruct.Log.verify|verify} messages.
+         * @function encode
+         * @memberof SpabDataStruct.Log
+         * @static
+         * @param {SpabDataStruct.ILog} message Log message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        Log.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
+                writer.uint32(/* id 1, wireType 1 =*/9).double(message.id);
+            if (message.timestamp != null && Object.hasOwnProperty.call(message, "timestamp"))
+                writer.uint32(/* id 2, wireType 1 =*/17).double(message.timestamp);
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.type);
+            if (message.data != null && Object.hasOwnProperty.call(message, "data"))
+                writer.uint32(/* id 4, wireType 2 =*/34).bytes(message.data);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified Log message, length delimited. Does not implicitly {@link SpabDataStruct.Log.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof SpabDataStruct.Log
+         * @static
+         * @param {SpabDataStruct.ILog} message Log message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        Log.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a Log message from the specified reader or buffer.
+         * @function decode
+         * @memberof SpabDataStruct.Log
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {SpabDataStruct.Log} Log
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        Log.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.SpabDataStruct.Log();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.id = reader.double();
+                    break;
+                case 2:
+                    message.timestamp = reader.double();
+                    break;
+                case 3:
+                    message.type = reader.string();
+                    break;
+                case 4:
+                    message.data = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a Log message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof SpabDataStruct.Log
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {SpabDataStruct.Log} Log
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        Log.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a Log message.
+         * @function verify
+         * @memberof SpabDataStruct.Log
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        Log.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.id != null && message.hasOwnProperty("id"))
+                if (typeof message.id !== "number")
+                    return "id: number expected";
+            if (message.timestamp != null && message.hasOwnProperty("timestamp"))
+                if (typeof message.timestamp !== "number")
+                    return "timestamp: number expected";
+            if (message.type != null && message.hasOwnProperty("type"))
+                if (!$util.isString(message.type))
+                    return "type: string expected";
+            if (message.data != null && message.hasOwnProperty("data"))
+                if (!(message.data && typeof message.data.length === "number" || $util.isString(message.data)))
+                    return "data: buffer expected";
+            return null;
+        };
+
+        /**
+         * Creates a Log message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof SpabDataStruct.Log
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {SpabDataStruct.Log} Log
+         */
+        Log.fromObject = function fromObject(object) {
+            if (object instanceof $root.SpabDataStruct.Log)
+                return object;
+            var message = new $root.SpabDataStruct.Log();
+            if (object.id != null)
+                message.id = Number(object.id);
+            if (object.timestamp != null)
+                message.timestamp = Number(object.timestamp);
+            if (object.type != null)
+                message.type = String(object.type);
+            if (object.data != null)
+                if (typeof object.data === "string")
+                    $util.base64.decode(object.data, message.data = $util.newBuffer($util.base64.length(object.data)), 0);
+                else if (object.data.length)
+                    message.data = object.data;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a Log message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof SpabDataStruct.Log
+         * @static
+         * @param {SpabDataStruct.Log} message Log
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        Log.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.id = 0;
+                object.timestamp = 0;
+                object.type = "";
+                if (options.bytes === String)
+                    object.data = "";
+                else {
+                    object.data = [];
+                    if (options.bytes !== Array)
+                        object.data = $util.newBuffer(object.data);
+                }
+            }
+            if (message.id != null && message.hasOwnProperty("id"))
+                object.id = options.json && !isFinite(message.id) ? String(message.id) : message.id;
+            if (message.timestamp != null && message.hasOwnProperty("timestamp"))
+                object.timestamp = options.json && !isFinite(message.timestamp) ? String(message.timestamp) : message.timestamp;
+            if (message.type != null && message.hasOwnProperty("type"))
+                object.type = message.type;
+            if (message.data != null && message.hasOwnProperty("data"))
+                object.data = options.bytes === String ? $util.base64.encode(message.data, 0, message.data.length) : options.bytes === Array ? Array.prototype.slice.call(message.data) : message.data;
+            return object;
+        };
+
+        /**
+         * Converts this Log to JSON.
+         * @function toJSON
+         * @memberof SpabDataStruct.Log
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        Log.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return Log;
+    })();
+
     SpabDataStruct.CameraData = (function() {
 
         /**

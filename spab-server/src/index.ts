@@ -4,7 +4,7 @@ import './Config';
 import * as http from 'http';
 import * as express from 'express';
 import { Server } from 'socket.io';
-
+import { SpabDataStruct } from "./../../spab-data-struct/SpabDataStruct";
 
 function main() {
     const app = express();
@@ -23,7 +23,7 @@ function main() {
         console.log('connect');
         socket.emit('isOnline', true);
         
-        socket.on('camData', (camData: any) => {
+        socket.on('log', (camData: SpabDataStruct.ILog) => {
             guiIo.emit('camData', camData);
         });
     });
