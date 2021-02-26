@@ -16,6 +16,8 @@ function main() {
     });
     clientIo.on("connection", (socket) => {
         //TODO: auth
+        console.log('connect');
+        socket.emit('isOnline', true);
         socket.on('camData', (camData) => {
             guiIo.emit('camData', camData);
         });
