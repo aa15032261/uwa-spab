@@ -4,24 +4,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 require("./Config");
 const http = require("http");
 const express = require("express");
-const socket_io_1 = require("socket.io");
+const WebSocketApi_1 = require("./WebSocketApi");
+const RestApi_1 = require("./RestApi");
 function main() {
     const app = express();
     const httpServer = http.createServer(app);
-    const clientIo = new socket_io_1.Server(httpServer, {
-        path: CLIENT_API_PATH
-    });
-    const guiIo = new socket_io_1.Server(httpServer, {
-        path: GUI_API_PATH
-    });
-    clientIo.on("connection", (socket) => {
-        //TODO: auth
-        console.log('connect');
-        socket.emit('isOnline', true);
-        socket.on('camData', (camData) => {
-            guiIo.emit('camData', camData);
-        });
-    });
-    httpServer.listen(8765);
+    new RestApi_1.RestApi(app);
+    new WebSocketApi_1.WebSocketApi(httpServer);
+    httpServer.listen(PORT);
 }
 main();
