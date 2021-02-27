@@ -152,15 +152,13 @@ export class MainController {
     }
 
     private _handleNewData(type: 'camera' | 'sensor', data: Buffer) {
-        console.log('handle');
         if (this._checkOnline()) {
             let log: SpabDataStruct.ILog = {
                 timestamp: (new Date()).getTime(),
                 type: type,
                 data: data
             };
-            console.log('send');
-            this._socket.emit('log', log);
+            this._socket.emit('log', SpabDataStruct.Log.encode(log).finish());
         } else {
             this._logDb.add(type, data);
         }
@@ -231,17 +229,21 @@ export class MainController {
                             reject('sync timeout');
                         }, 30000);
 
-                        this._socket.emit('log', log, (ack: boolean) => {
-                            clearTimeout(_timer);
+                        this._socket.emit(
+                            'log',
+                            SpabDataStruct.Log.encode(log!).finish(),
+                            (ack: boolean) => {
+                                clearTimeout(_timer);
 
-                            this._logDb.remove(
-                                log!.id!,
-                                log!.timestamp!,
-                                log!.type!
-                            );
+                                this._logDb.remove(
+                                    log!.id!,
+                                    log!.timestamp!,
+                                    log!.type!
+                                );
 
-                            resolve(undefined);
-                        });
+                                resolve(undefined);
+                            }
+                        );
                     }));
                 } else {
                     this._syncTimer = null;
