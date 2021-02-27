@@ -1,11 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CamControl = void 0;
+const tslib_1 = require("tslib");
 const childProcess = require("child_process");
+const mozjpeg = require("mozjpeg");
 class CamControl {
-    constructor(f, imgQuality) {
+    constructor(f) {
         this._f = [];
-        this._imgQuality = '5';
         this._imgCallback = null;
         this._imgInterval = -1;
         this._ffmpegProcess = null;
@@ -14,19 +15,23 @@ class CamControl {
         this._restartTimer = null;
         this._startTimer = null;
         this._f = f;
-        this._imgQuality = imgQuality;
     }
     _callImgCallbackOnTimeout() {
         if (this._imgTimer) {
             clearTimeout(this._imgTimer);
         }
-        this._imgTimer = setTimeout(() => {
+        this._imgTimer = setTimeout(() => tslib_1.__awaiter(this, void 0, void 0, function* () {
             if (this._imgCallback) {
-                this._imgCallback(this._imgBuf);
+                //this._imgCallback(this._imgBuf);
+                let mozJpegProcess = childProcess.spawnSync(mozjpeg, ['-quality', '65'], {
+                    shell: false,
+                    input: this._imgBuf
+                });
+                this._imgCallback(mozJpegProcess.stdout);
             }
             this._imgBuf = Buffer.alloc(0);
             this._imgTimer = null;
-        }, 20);
+        }), 20);
     }
     _restartFFMpeg() {
         if (this._startTimer) {
@@ -75,8 +80,8 @@ class CamControl {
             this._ffmpegProcess = childProcess.spawn('ffmpeg', [
                 '-loglevel', 'quiet',
                 '-f', ...this._f,
-                '-q:v', this._imgQuality,
                 ...vfOptions,
+                '-q:v', '0',
                 '-f', 'mjpeg', '-'
             ], {
                 shell: false
@@ -92,8 +97,6 @@ class CamControl {
                     ]);
                 }
                 this._callImgCallbackOnTimeout();
-            });
-            this._ffmpegProcess.stderr.on('data', (chunk) => {
             });
             this._ffmpegProcess.on('exit', (code) => {
                 this._ffmpegProcess = null;

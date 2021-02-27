@@ -1,11 +1,12 @@
 import * as childProcess from 'child_process';
+import * as stream from 'stream';
+import * as mozjpeg from 'mozjpeg';
 
 export class CamControl {
 
     private static MAX_BUFFER_SIZE = 64 * 1024;
 
     private _f: ReadonlyArray<string> = [];
-    private _imgQuality: string = '5';
     private _imgCallback: ((buf: Buffer) => void) | null = null;
 
 
@@ -23,9 +24,18 @@ export class CamControl {
             clearTimeout(this._imgTimer);
         }
 
-        this._imgTimer = setTimeout(() => {
+        this._imgTimer = setTimeout(async () => {
             if (this._imgCallback) {
-                this._imgCallback(this._imgBuf);
+                //this._imgCallback(this._imgBuf);
+                let mozJpegProcess = childProcess.spawnSync(
+                    mozjpeg,
+                    ['-quality', '65'],
+                    {
+                        shell: false,
+                        input: this._imgBuf
+                    }
+                );
+                this._imgCallback(mozJpegProcess.stdout);
             }
             this._imgBuf = Buffer.alloc(0);
             this._imgTimer = null;
@@ -86,8 +96,8 @@ export class CamControl {
                 [
                     '-loglevel', 'quiet',
                     '-f', ...this._f,
-                    '-q:v', this._imgQuality,
                     ...vfOptions,
+                    '-q:v', '0',
                     '-f', 'mjpeg', '-'
                 ],
                 {
@@ -107,10 +117,7 @@ export class CamControl {
     
                 this._callImgCallbackOnTimeout();
             });
-            this._ffmpegProcess.stderr.on('data', (chunk: Buffer) => {
-    
-            });
-    
+
             this._ffmpegProcess.on('exit', (code: number) => {
                 this._ffmpegProcess = null;
 
@@ -127,9 +134,8 @@ export class CamControl {
         }
     }
 
-    constructor (f: ReadonlyArray<string>, imgQuality: string) {
+    constructor (f: ReadonlyArray<string>) {
         this._f = f;
-        this._imgQuality = imgQuality;
     }
 
     set imgCallback(imgCallback: (buf: Buffer) => void) {
