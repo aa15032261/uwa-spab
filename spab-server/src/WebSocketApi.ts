@@ -111,6 +111,14 @@ export class WebSocketApi {
             }
 
             if (log.id) {
+                // cached data
+
+                // invalid timestamp
+                if (log.timestamp! > (new Date()).getTime()) {
+                    return;
+                }
+
+                // check if the cached log is in the database
                 let existingLog = await this._db!.collection('log').findOne({
                     id: log.id,
                     timestamp: log.timestamp,
@@ -126,6 +134,8 @@ export class WebSocketApi {
                     return;
                 }
             } else {
+                // real time data
+                log.timestamp = (new Date()).getTime();
                 delete log.id;
             }
 
@@ -144,10 +154,10 @@ export class WebSocketApi {
                     logObj.obj = SpabDataStruct.CameraData.decode(logObj.data!);
                     logObj.obj.buf = Buffer.from(logObj.obj.buf);
                     lastLogDataFilter["obj.name"] = logObj.obj.name;
-                    logFreq = 2 * 60 * 1000;
+                    logFreq = 60 * 1000;
                 } else if (log.type === 'sensor') {
                     logObj.obj = SpabDataStruct.SensorData.decode(logObj.data!);
-                    logFreq = 1 * 60 * 1000;
+                    logFreq = 30 * 1000;
                 }
 
                 delete logObj.data;
@@ -157,12 +167,16 @@ export class WebSocketApi {
 
                 let lastLogTimestamp = 0;
                 if (!log?.id) {
-                    lastLogTimestamp = (await this._db!.collection('log').findOne(lastLogDataFilter, {
-                        projection: {
-                            _id: 0,
-                            timestamp: 1
-                        }
-                    }))?.timestamp ?? 0;
+                    // find last log's timestamp
+                    lastLogTimestamp = (await this._db!.collection('log').find(lastLogDataFilter, {
+                            projection: {
+                                _id: 0,
+                                timestamp: 1
+                            }
+                        })
+                        .sort({'timestamp': -1})
+                        .limit(1)
+                        .toArray())[0]?.timestamp ?? 0;
                 }
 
                 if (logObj.timestamp! - lastLogTimestamp > logFreq) {
