@@ -154,7 +154,6 @@ export class MainController {
     private _handleNewData(type: 'camera' | 'sensor', data: Buffer) {
         if (this._checkOnline()) {
             let log: SpabDataStruct.ILog = {
-                timestamp: (new Date()).getTime(),
                 type: type,
                 data: data
             };
