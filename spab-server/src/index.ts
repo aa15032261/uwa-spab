@@ -3,16 +3,17 @@ import './Config';
 
 import * as http from 'http';
 import * as express from 'express';
+
+import { MongoDbConnection } from './MongoDbConnection';
+import { SessionController } from './SessionController';
+import { LoginController } from './LoginController';
 import { WebSocketApi } from './WebSocketApi';
 import { RestApi } from './RestApi';
-import { MongoDbConnection } from './MongoDbConnection';
+import { Session } from 'express-session';
 
 function main() {
     const app = express();
     const httpServer = http.createServer(app);
-
-    let restApi = new RestApi(app);
-    let websocketApi = new WebSocketApi(httpServer);
 
     new MongoDbConnection(
         'mongodb://' + encodeURIComponent(MONGO_USER) + ':' + encodeURIComponent(MONGO_PASSWORD) + '@' + MONGO_URL + '/admin',
@@ -20,8 +21,16 @@ function main() {
         (client) => {
             let db = client.db(MONGO_DB_NAME);
 
+            // start app
+            let sessionController = new SessionController();
+            let loginController = new LoginController();
+            let restApi = new RestApi(app, sessionController, loginController);
+            let websocketApi = new WebSocketApi(httpServer);
+
+            sessionController.updateDbPool(db);
+            loginController.updateDbPool(db);
             restApi.updateDbPool(db);
-            websocketApi.updateDbPool(db);
+            //websocketApi.updateDbPool(db);
         }
     )
 

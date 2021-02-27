@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>SPAB Login</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400&display=swap" rel="stylesheet">
+	<link rel ="mystyle" href="./static/css/mystyle.css">
+	<link rel="stylesheet" href="./static/css/bootstrap.min.css">
+	<style nonce={{nonce}}>
+		html, body {
+			height: 100%;
+			min-height: 100%;
+		}
+		input {
+			font-size: 16px !important;
+		}
+		a {
+			text-decoration: none;
+		}
+		* {
+			font-family: 'Roboto', sans-serif;
+		}
+		
+		#logonContainer {
+			display: flex;
+			position: relative;
+			width: 318px;
+			margin-top: 48px;
+			margin-bottom: 48px;
+		}
+		#logonContainer > .card {
+			border: 0;
+			border-radius: 0;
+		}
+		#logonContainer > .card > .card-body {
+			padding: 12px 0;
+		}
+	</style>
+</head>
+
+<body class="d-flex flex-column min-vh-100">
+	<div class="container-fluid d-flex flex-column flex-fill align-items-center justify-content-center p-0">
+		<div id="logonContainer" class="container p-3 shadow-lg">
+			<div class="card p-1 w-100">
+				<div class="card-body p-0">
+					<div id="logonErr" class="form-group border text-center rounded p-1 d-none"></div>
+					<form id="logonForm" class="needs-validation" novalidate>
+						<div class="form-group">
+							<input type="email" class="form-control" name="email" placeholder="Email address" required>
+							<div class="invalid-feedback">
+								Please enter a valid email address
+							</div>
+						</div>
+						<div class="form-group">
+							<input type="password" class="form-control" name="pass" placeholder="Password" minlength="8" required>
+							<div class="invalid-feedback">
+								Please enter your password
+							</div>
+						</div>
+						<button type="submit" id="logonBtn" class="btn btn-primary btn-block">Sign in</button>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script src="./static/js/jquery-3.5.1.slim.min.js"></script>
+	<script src="./static/js/bootstrap.bundle.min.js"></script>
+	<script src="./static/js/axios.min.js"></script>
+	<script>
+		var jLogonContainer = $('#logonContainer');
+		var jLogonErr = $('#logonErr');
+
+		var logonForm = document.getElementById('logonForm');
+		var jLogonForm = $(logonForm);
+		var jLogonBtn = $('#logonBtn');
+
+		var jCancelBtn = $('#cancelBtn');
+
+		// log on form listener
+		logonForm.addEventListener('submit', function(e) {
+			if (logonForm.checkValidity() === false) {
+				enableLogonForm();
+				jLogonForm.addClass('was-validated');
+			} else {
+				disableLogonForm();
+				showMsg('Loading...', false);
+
+				// convert logon form
+				var logonFormData = jLogonForm.find('input').serializeArray();
+				var logonFormObj = {};
+				for (var i in logonFormData) {
+					logonFormObj[logonFormData[i].name] = logonFormData[i].value;
+				}
+
+				axios({
+					method: 'post',
+					url: '/api/login',
+					data: logonFormObj,
+					responseType: 'json'
+				}).then(function (res) {
+					if (res.data instanceof Object) {
+						if (res.data.success) {
+							location.reload();
+						} else {
+							throw res.data.reason;
+						}
+					} else {
+						throw 'internal error';
+					}
+				}).catch(function (e) {
+					enableLogonForm();
+					showErr(e);
+				});
+			}
+
+			e.preventDefault();
+			e.stopPropagation();
+
+			return false;
+		}, false);
+
+
+		function hideMsg() {
+			jLogonErr.addClass('d-none');
+			jLogonErr.text('');
+		}
+
+		function enableLogonForm() {
+			jLogonBtn.prop('disabled', false);
+		}
+
+		function disableLogonForm() {
+			jLogonBtn.prop('disabled', true);
+		}
+		  
+		function showMsg(msg, err) {
+			if (err) {
+				jLogonErr.addClass(['alert-danger', 'text-danger', 'border-danger']);
+				jLogonErr.removeClass(['alert-info', 'text-info', 'border-info']);
+			} else {
+				jLogonErr.removeClass(['alert-danger', 'text-danger', 'border-danger']);
+				jLogonErr.addClass(['alert-info', 'text-info', 'border-info']);
+			}
+			jLogonErr.removeClass('d-none');
+			jLogonErr.text(msg);
+		}
+
+		function showErr(e) {
+			if (e === 'invalid credential') {
+				e = 'Invalid credential';
+			} else if (e === 'account disabled') {
+				e = 'This account is disabled';
+			} else {
+				e = 'Internal error occured';
+			}
+
+			showMsg(e, true);
+		}
+	</script>
+
+</body>
+</html>
