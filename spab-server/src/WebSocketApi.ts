@@ -111,6 +111,14 @@ export class WebSocketApi {
             }
 
             if (log.id) {
+                // cached data
+
+                // invalid timestamp
+                if (log.timestamp! > (new Date()).getTime()) {
+                    return;
+                }
+
+                // check if the cached log is in the database
                 let existingLog = await this._db!.collection('log').findOne({
                     id: log.id,
                     timestamp: log.timestamp,
@@ -125,43 +133,50 @@ export class WebSocketApi {
                 if (existingLog) {
                     return;
                 }
+            } else {
+                // real time data
+                log.timestamp = (new Date()).getTime();
+                delete log.id;
             }
 
 
             try {
                 let logObj: SpabDataStruct.ILog & {clientId?: string, obj?: any} = log;
-                let lastLogDataFilter: any = {};
+                let lastLogDataFilter: any = {
+                    clientId: clientId,
+                    type: log.type
+                };
                 let logFreq = 60 * 1000;
 
                 logObj.clientId = clientId;
 
                 if (log.type === 'camera') {
                     logObj.obj = SpabDataStruct.CameraData.decode(logObj.data!);
-                    lastLogDataFilter = {
-                        name: logObj.obj.name
-                    };
-                    logFreq = 2 * 60 * 1000;
+                    logObj.obj.buf = Buffer.from(logObj.obj.buf);
+                    lastLogDataFilter["obj.name"] = logObj.obj.name;
+                    logFreq = 60 * 1000;
                 } else if (log.type === 'sensor') {
                     logObj.obj = SpabDataStruct.SensorData.decode(logObj.data!);
-                    logFreq = 1 * 60 * 1000;
+                    logFreq = 30 * 1000;
                 }
 
                 delete logObj.data;
 
-                
+                // forcefully remove deleted properties
+                logObj = {...logObj};
+
                 let lastLogTimestamp = 0;
-                
                 if (!log?.id) {
-                    (await this._db!.collection('log').findOne({
-                        clientId: clientId,
-                        type: log.type,
-                        data: lastLogDataFilter
-                    }, {
-                        projection: {
-                            _id: 0,
-                            timestamp: 1
-                        }
-                    }))?.timestamp ?? 0;
+                    // find last log's timestamp
+                    lastLogTimestamp = (await this._db!.collection('log').find(lastLogDataFilter, {
+                            projection: {
+                                _id: 0,
+                                timestamp: 1
+                            }
+                        })
+                        .sort({'timestamp': -1})
+                        .limit(1)
+                        .toArray())[0]?.timestamp ?? 0;
                 }
 
                 if (logObj.timestamp! - lastLogTimestamp > logFreq) {
@@ -169,7 +184,9 @@ export class WebSocketApi {
                 }
 
                 this._guiIo.emit('log', log);
-            } catch (e) {}
+            } catch (e) {
+                console.log(e);
+            }
         });
     }
 
