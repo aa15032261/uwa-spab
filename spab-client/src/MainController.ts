@@ -6,6 +6,8 @@ import { io, Socket } from "socket.io-client";
 import { LogDb } from './LogDb';
 import { SpabDataStruct } from "./../../spab-data-struct/SpabDataStruct";
 
+import { authenticator } from 'otplib';
+
 interface Camera {
     name: string, 
     camControl: CamControl
@@ -32,7 +34,7 @@ export class MainController {
         for (let camCfg of CAM_CFGS) {
             let camera = {
                 name: camCfg.name,
-                camControl: new CamControl(camCfg.cfg, '5'),
+                camControl: new CamControl(camCfg.cfg),
             }
     
             camera.camControl.imgCallback = (buf: Buffer) => {
@@ -53,9 +55,18 @@ export class MainController {
             autoConnect: true,
             reconnectionDelayMax: 10000,
             reconnectionAttempts: Infinity,
-            auth: {
-                token: CLIENT_API_TOKEN
-            },
+            auth: (cb) => {
+                let authObj = {
+                    token: CLIENT_API_TOKEN,
+                    twoFactor: ''
+                };
+
+                if (CLIENT_TWO_FACTOR.type === 'totp') {
+                    authObj.twoFactor = authenticator.generate(CLIENT_TWO_FACTOR.secret);
+                }
+
+                cb(authObj);
+            }
         });
 
         this._socket.on('connect', () => {
@@ -66,6 +77,14 @@ export class MainController {
         });
         this._socket.on('connect_error', (err: any) => {
             this._disconnectHandler(err);
+        });
+        this._socket.on('disconnect', (reason: string) => {
+            this._disconnectHandler(reason);
+
+            // reconnect in 30 seconds if kicked by the server
+            setTimeout(() => {
+                this._socket.connect();
+            }, 30000);
         });
 
         this._restartEventLoop();
@@ -139,7 +158,7 @@ export class MainController {
                 type: type,
                 data: data
             };
-            this._socket.emit('log', log);
+            this._socket.emit('log', SpabDataStruct.Log.encode(log).finish());
         } else {
             this._logDb.add(type, data);
         }
@@ -210,17 +229,21 @@ export class MainController {
                             reject('sync timeout');
                         }, 30000);
 
-                        this._socket.emit('log', log, (ack: boolean) => {
-                            clearTimeout(_timer);
+                        this._socket.emit(
+                            'log',
+                            SpabDataStruct.Log.encode(log!).finish(),
+                            (ack: boolean) => {
+                                clearTimeout(_timer);
 
-                            this._logDb.remove(
-                                log!.id!,
-                                log!.timestamp!,
-                                log!.type!
-                            );
+                                this._logDb.remove(
+                                    log!.id!,
+                                    log!.timestamp!,
+                                    log!.type!
+                                );
 
-                            resolve(undefined);
-                        });
+                                resolve(undefined);
+                            }
+                        );
                     }));
                 } else {
                     this._syncTimer = null;

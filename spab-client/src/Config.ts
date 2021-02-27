@@ -5,6 +5,7 @@ declare global {
     var SERVER_URL: string;
     var CLIENT_API_PATH: string;
     var CLIENT_API_TOKEN: string;
+    var CLIENT_TWO_FACTOR: {type: string, secret: string};
 
     var CAM_CFGS: ReadonlyArray<{name: string, cfg: ReadonlyArray<string>}>;
     var CAM_ONLINE_INTERVAL: number;
