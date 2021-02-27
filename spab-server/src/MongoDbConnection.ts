@@ -35,11 +35,11 @@ export class MongoDbConnection {
                 mongodb_url,
                 mongodb_option
             ).then((db) => {
-                console.log('database connect');
+                console.log('mongodb connected');
                 this._isConnected = true;
                 connected_callback(db);
             }).catch((err) => {
-                console.log('cannot connect to database...:');
+                console.log('mongodb disconnected:');
                 console.log(err);
                 setTimeout(_connectMongoDb, 5000);
             });
