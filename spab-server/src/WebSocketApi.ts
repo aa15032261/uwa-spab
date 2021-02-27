@@ -125,21 +125,25 @@ export class WebSocketApi {
                 if (existingLog) {
                     return;
                 }
+            } else {
+                delete log.id;
             }
 
 
             try {
                 let logObj: SpabDataStruct.ILog & {clientId?: string, obj?: any} = log;
-                let lastLogDataFilter: any = {};
+                let lastLogDataFilter: any = {
+                    clientId: clientId,
+                    type: log.type
+                };
                 let logFreq = 60 * 1000;
 
                 logObj.clientId = clientId;
 
                 if (log.type === 'camera') {
                     logObj.obj = SpabDataStruct.CameraData.decode(logObj.data!);
-                    lastLogDataFilter = {
-                        name: logObj.obj.name
-                    };
+                    logObj.obj.buf = Buffer.from(logObj.obj.buf);
+                    lastLogDataFilter["obj.name"] = logObj.obj.name;
                     logFreq = 2 * 60 * 1000;
                 } else if (log.type === 'sensor') {
                     logObj.obj = SpabDataStruct.SensorData.decode(logObj.data!);
@@ -148,15 +152,12 @@ export class WebSocketApi {
 
                 delete logObj.data;
 
-                
+                // forcefully remove deleted properties
+                logObj = {...logObj};
+
                 let lastLogTimestamp = 0;
-                
                 if (!log?.id) {
-                    (await this._db!.collection('log').findOne({
-                        clientId: clientId,
-                        type: log.type,
-                        data: lastLogDataFilter
-                    }, {
+                    lastLogTimestamp = (await this._db!.collection('log').findOne(lastLogDataFilter, {
                         projection: {
                             _id: 0,
                             timestamp: 1
@@ -169,7 +170,9 @@ export class WebSocketApi {
                 }
 
                 this._guiIo.emit('log', log);
-            } catch (e) {}
+            } catch (e) {
+                console.log(e);
+            }
         });
     }
 
