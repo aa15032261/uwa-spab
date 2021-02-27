@@ -27,5 +27,5 @@ module.exports = function() {
     this.CAM_OFFLINE_INTERVAL = 1 * 60 * 1000;
 
     this.SNR_ONLINE_INTERVAL = 100;
-    this.SNR_OFFLINE_INTERVAL = 1 * 60 * 1000;
+    this.SNR_OFFLINE_INTERVAL = 30 * 1000;
 }
