@@ -6,7 +6,7 @@ module.exports = function() {
 
     this.SERVER_URL = 'wss://spab.toms.directory';
     this.CLIENT_API_PATH = '/api/client_ws/';
-    this.CLIENT_API_TOKEN = 'TEST_TOKEN';
+    this.CLIENT_API_TOKEN = 'c3854a4bf55287c0ac9183549a31e88977a2f4879b7959cf231de5b6af8f8d8a';
 
     this.CAM_CFGS = [
         {
