@@ -7,8 +7,8 @@ import * as bcrypt from 'bcrypt';
 import { SessionStruct } from 'SessionController';
 
 interface LoginSession {
-    lastLogin: number,
-    userId: string
+    lastLogin?: number,
+    userId?: string
 }
 
 interface LoginStatus {
@@ -63,7 +63,7 @@ class LoginController {
                             throw 'not found';
                         }
 
-                        if (sessionObj.lastLogin < userObj.lastModified) {
+                        if (!sessionObj.lastLogin || sessionObj.lastLogin < userObj.lastModified) {
                             throw 'expired';
                         }
 
@@ -127,9 +127,24 @@ class LoginController {
             return userObj.failedAttempt === 0 ? undefined : 'invalid credential';
 
         } catch (e) {
-            console.log(e);
             return 'internal error';
         }
+    }
+
+    public async logout(sessionStruct: SessionStruct): Promise<string | undefined> {
+        try {
+            let sessionObj = sessionStruct.data as LoginSession;
+
+            if (sessionObj) {
+                delete sessionObj.userId;
+                delete sessionObj.lastLogin;
+            }
+            
+        } catch (e) {
+            return 'internal error';
+        }
+
+        return;
     }
 
     public async genBcryptedPass(clrPw: string) {

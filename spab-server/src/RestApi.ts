@@ -4,7 +4,7 @@ import * as express from 'express';
 import * as mongodb from 'mongodb'
 
 import { LoginController, LoginSession, LoginStatus } from './LoginController';
-import { SpabDataStruct } from "./../../spab-data-struct/SpabDataStruct";
+
 
 import { Validator } from 'jsonschema';
 import { SessionController, SessionStruct } from './SessionController';
@@ -39,6 +39,35 @@ export class RestApi {
                 }
             }
         )
+
+
+        let spabGuiRouter = express.Router();
+        let spabGuiRoute = express.static(path.resolve(__dirname, './../../../spab-gui/dist/spab-gui'));
+        spabGuiRouter.get(
+            '*.js',
+            sessionHandler,
+            loginHandler,
+            (
+                req: express.Request, 
+                res: express.Response,
+                next: express.NextFunction
+            ) => {
+                if ((req as any as LoginStatus).loginStatus?.loggedIn) { 
+                    next();
+                    return;
+                }
+                res.status(403).send();
+            },
+            spabGuiRoute
+        );
+        spabGuiRouter.get(
+            '*',
+            async (req, res) => {
+                res.status(404).send();   
+            }
+        );
+        app.use('/spab_gui', spabGuiRouter);
+
 
         app.post(
             '/api/login',
@@ -86,7 +115,6 @@ export class RestApi {
 
                 let sessionStruct = (req.session as any)[SESSION_NAME] as SessionStruct;
 
-                // logged out
                 let loginRes = await loginController.login(
                     req.body.email,
                     req.body.pass,
@@ -105,7 +133,46 @@ export class RestApi {
                     success: true
                 });
             }
-        )
+        );
+
+
+        app.post(
+            '/api/logout',
+            express.json(),
+            sessionHandler,
+            async (
+                req: express.Request, 
+                res: express.Response
+            ) => {
+                if ((req as any as LoginStatus).loginStatus?.loggedIn) {
+                    // logged in
+                    res.send({
+                        success: true
+                    });
+                    return;
+                }
+
+                let sessionStruct = (req.session as any)[SESSION_NAME] as SessionStruct;
+
+                let logoutRes = await loginController.logout(
+                    sessionStruct
+                );
+
+                if (logoutRes) {
+                    res.send({
+                        success: false,
+                        reason: logoutRes
+                    });
+                    return;
+                }
+
+                res.send({
+                    success: true
+                });
+            }
+        );
+
+        
     }
 
     public updateDbPool(db: mongodb.Db) {
