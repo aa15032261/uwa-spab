@@ -1,7 +1,8 @@
 import * as path from 'path';
 
 import * as express from 'express';
-import * as mongodb from 'mongodb'
+import * as mongodb from 'mongodb';
+import * as fs from 'fs-extra';
 
 import { LoginController, LoginSession, LoginStatus } from './LoginController';
 
@@ -31,18 +32,17 @@ export class RestApi {
             ) => {
                 if ((req as any as LoginStatus).loginStatus?.loggedIn) {
                     // logged in
-                    res.send();
-
+                    res.send(fs.readFileSync(path.resolve(__dirname, './../../spab-gui/dist/index.html'), 'utf8'));
                 } else {
                     // logged out
-                    res.sendFile(path.resolve(__dirname, '../private/login.html'));
+                    res.send(fs.readFileSync(path.resolve(__dirname, '../private/login.html'), 'utf8'));
                 }
             }
         )
 
 
         let spabGuiRouter = express.Router();
-        let spabGuiRoute = express.static(path.resolve(__dirname, './../../../spab-gui/dist/spab-gui'));
+        let spabGuiRoute = express.static(path.resolve(__dirname, './../../spab-gui/dist'));
         spabGuiRouter.get(
             '*.js',
             sessionHandler,
@@ -172,7 +172,20 @@ export class RestApi {
             }
         );
 
-        
+
+        app.use((
+            err: any, 
+            req: express.Request, 
+            res: express.Response,
+            next: express.NextFunction
+        ) => {
+            if (err) {
+                console.log(err);
+              res.status(500).send();
+              return;
+            }
+            next();
+        });
     }
 
     public updateDbPool(db: mongodb.Db) {
