@@ -12,10 +12,11 @@ interface LoginSession {
 }
 
 interface LoginStatus {
-    loginStatus: {
+    loginStatus?: {
         loggedIn: boolean,
         lastLogin: number,
-        userId: string
+        userId: string,
+        reason? : string
     }
 }
 
@@ -32,51 +33,70 @@ class LoginController {
             next: express.NextFunction
         ) => {
             let spabReq = req as express.Request & LoginStatus;
+            let sessionStruct: SessionStruct | undefined;
 
-            spabReq.loginStatus = {
-                loggedIn: false,
-                lastLogin: 0,
-                userId: ''
+            if (req.session && (req.session as any)[SESSION_NAME]) {
+                sessionStruct = (req.session as any)[SESSION_NAME] as SessionStruct;
             }
 
-            try {
-                if (!this._db) {
-                    throw 'db not ready';
-                }
-
-                if (req.session && (req.session as any)[SESSION_NAME]) {
-
-                    let sessionStruct = (req.session as any)[SESSION_NAME] as SessionStruct;
-
-                    if (!sessionStruct.data) {
-                        throw 'not found';
-                    }
-
-                    let sessionObj = sessionStruct.data as LoginSession;
-            
-                    if (sessionObj.userId) {
-                        let userObj = await this._db.collection('user').findOne({
-                            _id: new mongodb.ObjectId(sessionObj.userId)
-                        });
-
-                        if (!userObj) {
-                            throw 'not found';
-                        }
-
-                        if (!sessionObj.lastLogin || sessionObj.lastLogin < userObj.lastModified) {
-                            throw 'expired';
-                        }
-
-                        spabReq.loginStatus.loggedIn = true;
-                        spabReq.loginStatus.userId = sessionObj.userId;
-                        spabReq.loginStatus.lastLogin = sessionObj.lastLogin;
-                    }
-                }
-            } catch (e) { }
+            await this.getLoginStatus(spabReq, sessionStruct);
 
             next();
         }
     }
+
+    public async getLoginStatus(
+        obj: LoginStatus, 
+        sessionStruct: SessionStruct | undefined
+    ) {
+        obj.loginStatus = {
+            loggedIn: false,
+            lastLogin: 0,
+            userId: '',
+            reason: 'unknown'
+        }
+
+        try {
+            if (!this._db) {
+                throw 'db not ready';
+            }
+
+            if (!sessionStruct) {
+                throw 'invalid session';
+            }
+
+            if (!sessionStruct.data) {
+                throw 'invalid session';
+            }
+
+            let sessionObj = sessionStruct.data as LoginSession;
+
+            if (!sessionObj.userId) {
+                throw 'invalid session';
+            }
+
+            let userObj = await this._db.collection('user').findOne({
+                _id: new mongodb.ObjectId(sessionObj.userId)
+            });
+
+            if (!userObj) {
+                throw 'not found';
+            }
+
+            if (!sessionObj.lastLogin || sessionObj.lastLogin < userObj.lastModified) {
+                throw 'expired';
+            }
+
+            obj.loginStatus.loggedIn = true;
+            obj.loginStatus.userId = sessionObj.userId;
+            obj.loginStatus.lastLogin = sessionObj.lastLogin;
+            obj.loginStatus.reason = undefined;
+        } catch (e) {
+            obj.loginStatus.reason = e.toString();
+        }
+    }
+
+
 
     private async _verifyUserPass(clrPw: string, bcryptedPw: string) {
         return await bcrypt.compare(

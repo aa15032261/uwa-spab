@@ -5,6 +5,7 @@ import * as cookieParser from 'cookie-parser';
 import * as crypto from 'crypto';
 import * as mongodb from 'mongodb';
 import * as express from 'express';
+import { IncomingHttpHeaders } from 'http';
 
 interface SessionStruct {
     autoGen: boolean,
@@ -13,12 +14,35 @@ interface SessionStruct {
     data?: any
 }
 
+
 class SessionController {
 
     private _db?: mongodb.Db;
     private _collectionName: string = 'session';
 
-    constructor () {}
+    private _cookieIv: Buffer;
+    private _cookieKey: Buffer;
+
+    private _dataIv: Buffer;
+    private _dataKey: Buffer;
+
+    constructor () {
+        let cookieIvHash = crypto.createHash('md5');
+        cookieIvHash.update(SESSION_COOKIE_IV);
+        this._cookieIv = cookieIvHash.digest();
+
+        let cookieKeyHash = crypto.createHash('sha256');
+        cookieKeyHash.update(SESSION_COOKIE_KEY);
+        this._cookieKey = cookieKeyHash.digest();
+
+        let dataIvHash = crypto.createHash('md5');
+        dataIvHash.update(SESSION_COOKIE_IV);
+        this._dataIv = dataIvHash.digest();
+
+        let dataKeyHash = crypto.createHash('sha256');
+        dataKeyHash.update(SESSION_COOKIE_KEY);
+        this._dataKey = dataKeyHash.digest();
+    }
 
     private _setupAutoCleanup() {
         let self = this;
@@ -48,15 +72,31 @@ class SessionController {
     }
 
 
+    private _getKeyIv( type: 'cookie' | 'data'): [Buffer, Buffer] | undefined {
+        let keyIv: [Buffer, Buffer] | undefined;
 
+        if (type === 'cookie') {
+            keyIv = [this._cookieKey, this._cookieIv];
+        } else if (type === 'data') {
+            keyIv = [this._dataKey, this._dataIv];
+        }
 
-    private _decrypt(buf: Buffer): string {
+        return keyIv;
+    }
+
+    private _decrypt(buf: Buffer, type: 'cookie' | 'data'): string {
         let ret = '';
+
         try {
+            let keyIv = this._getKeyIv(type);
+
+            if (!keyIv) {
+                throw 'invalid type';
+            }
+
             let decipher = crypto.createDecipheriv(
                 'aes-256-cbc', 
-                Buffer.from([0x11, 0xF7, 0xA3, 0xFD, 0xF6, 0x83, 0x3E, 0xEA, 0x3D, 0x3B, 0xE7, 0x3D, 0xF0, 0x2F, 0x6E, 0x62, 0x6E, 0x97, 0x89, 0xA2, 0x7E, 0x63, 0xE4, 0x03, 0x1F, 0xDC, 0x9B, 0x64, 0xB9, 0x38, 0x36, 0x0C]), 
-                Buffer.from([0xEF, 0x98, 0x5F, 0x38, 0x45, 0x8E, 0xA3, 0xF7, 0x51, 0xB2, 0x41, 0xDF, 0xC0, 0x8B, 0x5F, 0x81])
+                ...keyIv
             );
     
             ret = Buffer.concat([decipher.update(buf), decipher.final()]).toString('utf8');
@@ -65,14 +105,19 @@ class SessionController {
         return ret;
     };
 
-    private _encrypt(str: string): Buffer {
+    private _encrypt(str: string, type: 'cookie' | 'data'): Buffer {
         let ret = Buffer.alloc(0);
 
         try {
+            let keyIv = this._getKeyIv(type);
+
+            if (!keyIv) {
+                throw 'invalid type';
+            }
+
             let cipher = crypto.createCipheriv(
                 'aes-256-cbc', 
-                Buffer.from([0x11, 0xF7, 0xA3, 0xFD, 0xF6, 0x83, 0x3E, 0xEA, 0x3D, 0x3B, 0xE7, 0x3D, 0xF0, 0x2F, 0x6E, 0x62, 0x6E, 0x97, 0x89, 0xA2, 0x7E, 0x63, 0xE4, 0x03, 0x1F, 0xDC, 0x9B, 0x64, 0xB9, 0x38, 0x36, 0x0C]), 
-                Buffer.from([0xEF, 0x98, 0x5F, 0x38, 0x45, 0x8E, 0xA3, 0xF7, 0x51, 0xB2, 0x41, 0xDF, 0xC0, 0x8B, 0x5F, 0x81])
+                ...keyIv
             );
     
             ret = Buffer.concat([cipher.update(Buffer.from(str, 'utf8')), cipher.final()]);
@@ -103,7 +148,7 @@ class SessionController {
                 } else {
                     return {
                         token: token,
-                        encryptedToken: this._encrypt(token).toString('hex')
+                        encryptedToken: this._encrypt(token, 'cookie').toString('hex')
                     }
                 }
             } catch (err) { }
@@ -114,7 +159,7 @@ class SessionController {
 
     private _getToken(encryptedToken: string): string | undefined {
         try {
-            let token = this._decrypt(Buffer.from(encryptedToken, 'hex'));
+            let token = this._decrypt(Buffer.from(encryptedToken, 'hex'), 'cookie');
             if (token.length === 128) {
                 return token;
             }
@@ -202,8 +247,8 @@ class SessionController {
             }
     
             let expire = new Date(new Date().getTime() + SESSION_TTL * 1000);
-            info = this._encrypt(this._generateR(JSON.stringify(info)));
-            data = this._encrypt(this._generateR(JSON.stringify(data)));
+            info = this._encrypt(this._generateR(JSON.stringify(info)), 'data');
+            data = this._encrypt(this._generateR(JSON.stringify(data)), 'data');
 
             let tokens = await this._generateToken();
 
@@ -274,9 +319,9 @@ class SessionController {
                         throw 'session corrupted';
                     }
 
-                    if (this._verifyInfo(JSON.parse(this._removeR(this._decrypt(res.info.buffer))), info) === true) {
+                    if (this._verifyInfo(JSON.parse(this._removeR(this._decrypt(res.info.buffer, 'data'))), info) === true) {
                         if (res.data) {
-                            return JSON.parse(this._removeR(this._decrypt(res.data.buffer)));
+                            return JSON.parse(this._removeR(this._decrypt(res.data.buffer, 'data')));
                         }
                     } else {
                         //hijacked session
@@ -298,23 +343,26 @@ class SessionController {
     };
 
     
-    private _getInfoFromExpress(req: express.Request) {
+    private _getInfoFromConnection(
+        headers: IncomingHttpHeaders, 
+        ip: string | undefined
+    ) {
         let self = this;
 
         let ipAddress: string = '';
 
         // get client's ip through cloudflare
-        if (req.headers['cf-connecting-ip'] !== undefined) {
-            ipAddress = req.headers['cf-connecting-ip'] as string;
+        if (headers['cf-connecting-ip'] !== undefined) {
+            ipAddress = headers['cf-connecting-ip'] as string;
         }
         // get client's ip through nginx
         else {
-            ipAddress = ((req.headers['x-forwarded-for'] || req.connection.remoteAddress || '') as string).split(',')[0].trim();
+            ipAddress = ((headers['x-forwarded-for'] || ip || '') as string).split(',')[0].trim();
         }
 
         let agent = 'Unknown';
-        if (req.headers['user-agent']) {
-            agent = req.headers['user-agent'].substring(0, 64) + req.headers['user-agent'].replace(/[^0-9]/g, '');
+        if (headers['user-agent']) {
+            agent = headers['user-agent'].substring(0, 64) + headers['user-agent'].replace(/[^0-9]/g, '');
             agent = agent.substring(0, 512);
         }
 
@@ -330,6 +378,25 @@ class SessionController {
             'agent': agent
         };
     };
+
+    public async getSessionStruct(
+        encryptedToken: string | undefined,
+        headers: IncomingHttpHeaders,
+        ip: string | undefined
+    ): Promise<SessionStruct> {
+        let sessionStruct: SessionStruct = {
+            autoGen: true,
+            isSet: false,
+            info: this._getInfoFromConnection(headers, ip)
+        };
+
+        if (encryptedToken) {
+            let data = await this._getSessionData(encryptedToken, sessionStruct.info);
+            sessionStruct.data = data;
+        }
+
+        return sessionStruct;
+    }
 
     
 
@@ -361,7 +428,7 @@ class SessionController {
         }
     };
 
-    private _destroyClientCookie(
+    public destroyClientCookie(
         res: express.Response, 
     ) {
         try {
@@ -446,18 +513,11 @@ class SessionController {
                     (req as any).session = { };
                 }
                 try {
-                    let sessionStruct: SessionStruct = {
-                        autoGen: true,
-                        isSet: false,
-                        info: this._getInfoFromExpress(req)
-                    };
-
-                    (req as any).session[SESSION_NAME] = sessionStruct;
-
-                    if (req.cookies[SESSION_NAME]) {
-                        let data = await this._getSessionData(req.cookies[SESSION_NAME], sessionStruct.info);
-                        sessionStruct.data = data;
-                    }
+                    (req as any).session[SESSION_NAME] = await this.getSessionStruct(
+                        req.cookies[SESSION_NAME], 
+                        req.headers, 
+                        req.socket.remoteAddress
+                    );
 
                     next();
                 } catch (err) {

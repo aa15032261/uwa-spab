@@ -13,8 +13,10 @@ declare global {
 
     var USER_PASSWORD_SALT: string;
     var SESSION_NAME: string;
-    var SESSION_ID_SECRET: string;
-    var SESSION_DATA_SECRET: string;
+    var SESSION_COOKIE_IV: string;
+    var SESSION_COOKIE_KEY: string;
+    var SESSION_DATA_IV: string;
+    var SESSION_DATA_KEY: string;
     var SESSION_TTL: number;
 }
 

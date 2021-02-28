@@ -3,12 +3,24 @@ import './Config';
 
 import * as http from 'http';
 import { Server, Socket } from 'socket.io';
+import * as cookie from 'cookie';
 import { SpabDataStruct } from "./../../spab-data-struct/SpabDataStruct";
 
 import * as mongodb from 'mongodb'
 import { authenticator, totp } from 'otplib';
+import { SessionController } from './SessionController';
+import { LoginController, LoginStatus } from './LoginController';
 
-
+interface SpabClient {
+    clientId: string,
+    name: string,
+    socketIds: Set<string>,
+    latestLogs: {
+        type: 'camera' | 'sensor',
+        timestamp: number,
+        obj: any
+    }[]
+}
 
 export class WebSocketApi {
 
@@ -17,8 +29,14 @@ export class WebSocketApi {
     private _clientIo: Server;
     private _guiIo: Server;
 
+    private _clientCache = new Map<string, SpabClient>();
 
-    constructor(httpServer: http.Server) {
+
+    constructor(
+        httpServer: http.Server, 
+        sessionController: SessionController,
+        loginController: LoginController
+    ) {
 
         totp.options = { window: [-1, 1] };
         
@@ -29,7 +47,8 @@ export class WebSocketApi {
             path: GUI_API_PATH
         });
     
-        this._clientIo.on("connection", async (socket: Socket) => {
+        this._clientIo.on('connection', async (socket: Socket) => {
+            console.log('client');
             try {
                 if (!this._db) {
                     throw 'db not ready';
@@ -50,45 +69,94 @@ export class WebSocketApi {
                 this._setupClientSocket(clientId, socket);
 
             } catch (e) {
+                socket.disconnect(true);
+            }
+        });
+
+        this._guiIo.on('connection', async (socket: Socket & LoginStatus) => {
+            try {
+                if (!this._db) {
+                    throw 'db not ready';
+                }
+
+                if (!socket.handshake.headers.cookie) {
+                    throw 'invalid request';
+                }
+
+                let cookies = cookie.parse(socket.handshake.headers.cookie);
+                let sessionStruct = await sessionController.getSessionStruct(
+                    cookies[SESSION_NAME], 
+                    socket.handshake.headers, 
+                    socket.handshake.address
+                )
+
+                await loginController.getLoginStatus(socket, sessionStruct);
+
+                if (!(socket.loginStatus?.loggedIn)) {
+                    throw 'invalid request';
+                }
+            } catch (e) {
                 console.log(e);
+                console.log(socket.handshake);
                 socket.disconnect(true);
             }
         });
     }
 
     private async _clientAuth(token: string, twoFactor: string): Promise<string | undefined> {
-        let client = await this._db!.collection('client').findOne({
+        let clientObj = await this._db!.collection('client').findOne({
             token: token
         }, {
             projection: {
                 _id: 1,
+                name: 1,
                 two_factor: 1
             }
         });
 
-        if (!client) {
+        if (!clientObj) {
             return;
         }
 
         let authenticated = false;
 
-        if (client.two_factor?.type === 'totp' && client.two_factor?.secret) {
+        if (clientObj.two_factor?.type === 'totp' && clientObj.two_factor?.secret) {
             authenticated = authenticator.verify({
                 token: twoFactor, 
-                secret: client.two_factor.secret
+                secret: clientObj.two_factor.secret
             });
         }
 
         if (authenticated) {
-            return client._id.toString();
+            return clientObj._id.toString();
         }
 
+        await this._addNewClientToCache(
+            clientObj._id.toString(),
+            clientObj.name
+        );
         return;
     }
 
     private _setupClientSocket(clientId: string, socket: Socket) {
         console.log('connect');
+
+        //TODO: properly handle polling
         socket.emit('isPolling', true);
+
+        let client = this._clientCache.get(clientId);
+        if (client) {
+            client.socketIds.add(socket.id);
+            // TODO: notify online
+        }
+
+        socket.on('disconnect', () => {
+            let client = this._clientCache.get(clientId);
+            if (client) {
+                client.socketIds.delete(socket.id);
+                // TODO: notify offline
+            }
+        });
 
         socket.on('log', async (logEncoded, ackCallback) => {
     
@@ -165,6 +233,8 @@ export class WebSocketApi {
                 // forcefully remove deleted properties
                 logObj = {...logObj};
 
+                // TODO: add to clientCache
+
                 let lastLogTimestamp = 0;
                 if (!log?.id) {
                     // find last log's timestamp
@@ -192,5 +262,65 @@ export class WebSocketApi {
 
     public updateDbPool(db: mongodb.Db) {
         this._db = db;
+        this._updateClientList();
+    }
+
+    private async _updateClientList() {
+        try {
+            let newClientIdSet = new Set<string>();
+            let existingClientIdSet = new Set<string>();
+
+            let clientObjs = await this._db!.collection('client').find({
+
+            }, {
+                projection: {
+                    _id: 1,
+                    name: 1
+                }
+            }).toArray();
+
+            for (let clientObj of clientObjs) {
+                clientObj.clientId = clientObj._id.toString();
+                newClientIdSet.add(clientObj._id.toString());
+            }
+
+            // remove deleted clients from the list
+            for (let [clientId, client] of this._clientCache) {
+                if (newClientIdSet.has(client.clientId)) {
+                    existingClientIdSet.add(clientId);
+                } else {
+                    this._clientCache.delete(clientId);
+                }
+            }
+
+
+
+            // add new clients to the list
+            for (let clientObj of clientObjs) {
+                if (!existingClientIdSet.has(clientObj.clientId)) {
+                    await this._addNewClientToCache(clientObj.clientId, clientObj.name);
+                }
+            }
+            
+        } catch (e) { }
+    }
+
+    private async _addNewClientToCache(
+        clientId: string,
+        name: string
+    ) {
+        if (!this._clientCache.has(clientId)) {
+            let client = {
+                clientId: clientId,
+                name: name,
+                socketIds: new Set<string>(),
+                latestLogs: []
+            };
+
+            // TODO: populate object
+
+
+            this._clientCache.set(clientId, client);
+        }
     }
 }

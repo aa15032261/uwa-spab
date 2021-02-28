@@ -154,17 +154,11 @@ export class RestApi {
 
                 let sessionStruct = (req.session as any)[SESSION_NAME] as SessionStruct;
 
-                let logoutRes = await loginController.logout(
+                await loginController.logout(
                     sessionStruct
                 );
 
-                if (logoutRes) {
-                    res.send({
-                        success: false,
-                        reason: logoutRes
-                    });
-                    return;
-                }
+                sessionController.destroyClientCookie(res);
 
                 res.send({
                     success: true
@@ -172,6 +166,17 @@ export class RestApi {
             }
         );
 
+        app.get(
+            '/api/heartbeat',
+            express.json(),
+            sessionHandler,
+            async (
+                req: express.Request, 
+                res: express.Response
+            ) => {
+                res.status(200).send();
+            }
+        );
 
         app.use((
             err: any, 

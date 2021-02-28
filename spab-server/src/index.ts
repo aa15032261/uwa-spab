@@ -25,12 +25,12 @@ function main() {
             let sessionController = new SessionController();
             let loginController = new LoginController();
             let restApi = new RestApi(app, sessionController, loginController);
-            let websocketApi = new WebSocketApi(httpServer);
+            let websocketApi = new WebSocketApi(httpServer, sessionController, loginController);
 
             sessionController.updateDbPool(db);
             loginController.updateDbPool(db);
             restApi.updateDbPool(db);
-            //websocketApi.updateDbPool(db);
+            websocketApi.updateDbPool(db);
         }
     )
 

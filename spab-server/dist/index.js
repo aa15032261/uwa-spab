@@ -18,11 +18,11 @@ function main() {
         let sessionController = new SessionController_1.SessionController();
         let loginController = new LoginController_1.LoginController();
         let restApi = new RestApi_1.RestApi(app, sessionController, loginController);
-        let websocketApi = new WebSocketApi_1.WebSocketApi(httpServer);
+        let websocketApi = new WebSocketApi_1.WebSocketApi(httpServer, sessionController, loginController);
         sessionController.updateDbPool(db);
         loginController.updateDbPool(db);
         restApi.updateDbPool(db);
-        //websocketApi.updateDbPool(db);
+        websocketApi.updateDbPool(db);
     });
     httpServer.listen(PORT);
 }
