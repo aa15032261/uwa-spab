@@ -22,9 +22,7 @@ import { TooltipModule } from 'ngx-bootstrap/tooltip';
   ],
   imports: [
     BrowserModule,
-    RouterModule.forRoot([
-
-    ]),
+    RouterModule.forRoot([], { relativeLinkResolution: 'legacy' }),
     AppRoutingModule,
     BrowserAnimationsModule,
     HttpClientModule,
