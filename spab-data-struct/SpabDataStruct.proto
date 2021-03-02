@@ -4,8 +4,8 @@ syntax = "proto3";
 message Log {
     double id = 1;
     double timestamp = 2;
-    string type = 3;
-    bytes data = 4;
+    string type = 4;
+    bytes data = 5;
 }
 
 message CameraData {

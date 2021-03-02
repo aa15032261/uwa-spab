@@ -128,9 +128,9 @@ class ClientStore {
 
             for (let log of latestCameraLogs) {
                 client.latestLogs.push({
-                    timestamp: log.timestamp,
-                    type: log.type,
-                    obj: log.obj
+                    timestamp: log.doc.timestamp,
+                    type: log.doc.type,
+                    obj: log.doc.obj
                 });
             }
 
@@ -189,7 +189,7 @@ class ClientStore {
     }
 
     public addLog(
-        log: SpabDataStruct.ILog & {clientId?: mongodb.ObjectId, obj?: any}
+        log: SpabDataStruct.ILog & {obj?: any}
     ): SpabLog | undefined {
 
         if (!log.clientId) {
@@ -204,7 +204,7 @@ class ClientStore {
             return;
         }
 
-        for (let spabLog of spabClient?.latestLogs) {
+        for (let spabLog of spabClient.latestLogs) {
             if (
                 log.type === spabLog.type &&
                 (
@@ -215,10 +215,21 @@ class ClientStore {
                 if (log.timestamp && log.timestamp > spabLog.timestamp) {
                     spabLog.timestamp = log.timestamp;
                     spabLog.obj = log.obj;
+                    return spabLog;
                 } else {
                     return;
                 }
             }
+        }
+
+        if (log.timestamp && (log.type === 'sensor' || log.type === 'camera')) {
+            let spabLog: SpabLog = {
+                type: log.type,
+                timestamp: log.timestamp!,
+                obj: log.obj
+            };
+            spabClient.latestLogs.push(spabLog);
+            return spabLog;
         }
 
         return;
@@ -226,6 +237,7 @@ class ClientStore {
 }
 
 export {
+    SpabLog,
     SpabClient,
     ClientStore
 }

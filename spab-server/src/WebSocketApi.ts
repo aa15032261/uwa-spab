@@ -10,7 +10,7 @@ import * as mongodb from 'mongodb'
 import { authenticator, totp } from 'otplib';
 import { SessionController } from './SessionController';
 import { LoginController, LoginStatus } from './LoginController';
-import { ClientStore } from './ClientStore';
+import { ClientStore, SpabLog } from './ClientStore';
 
 interface GuiStatus {
     guiStatus?: {
@@ -61,7 +61,7 @@ export class WebSocketApi {
                     throw 'authentication failed';
                 }
 
-                this._setupClientSocket(clientId, socket);
+                await this._setupClientSocket(clientId, socket);
             } catch (e) {
                 socket.disconnect(true);
             }
@@ -134,12 +134,17 @@ export class WebSocketApi {
         return;
     }
 
-    private _setupClientSocket(clientId: string, socket: Socket) {
+    private async _setupClientSocket(clientId: string, socket: Socket) {
         console.log('connect');
 
         if (this._clientStore.addClientSocketId(clientId, socket.id)) {
             // notify online
             this._broadcastToGui('online', clientId);
+
+            let count = await this._getClientSubscriberCount(clientId);
+            if (count > 0) {
+                this._sendMsgAck(socket, 'polling', [true]);
+            }
         }
 
         socket.on('disconnect', () => {
@@ -149,10 +154,12 @@ export class WebSocketApi {
             }
         });
 
-        socket.on('log', async (logEncoded, ackCallback) => {
+        socket.on('log', async (ackResponse, logEncoded) => {
     
-            if (ackCallback) {
-                ackCallback(true);
+            if (ackResponse instanceof Function) {
+                ackResponse(true);
+            } else {
+                return;
             }
 
             if (!logEncoded) {
@@ -245,7 +252,16 @@ export class WebSocketApi {
                     await this._db!.collection('log').insertOne(logObj);
                 }
 
-                this._broadcastToGuiSubscriber(clientId, logObj);
+
+                let spabLog = this._clientStore.addLog(log);
+                if (!spabLog) {
+                    return;
+                }
+
+                await this._sendToGuiSubscriber(clientId, 'log', {
+                    clientId,
+                    ...spabLog
+                });
             } catch (e) {
                 console.log(e);
             }
@@ -257,13 +273,12 @@ export class WebSocketApi {
             subscribedClientIds: new Set<string>()
         }
 
-        socket.on('get', (cmd: string, ackResponse) => {
-            if (!ackResponse) {
+        socket.on('get', (ackResponse, cmd: string) => {
+            if (!(ackResponse instanceof Function)) {
                 return;
             }
 
             if (cmd === 'clients') {
-                console.log(this._clientStore.getClientList());
                 ackResponse(this._clientStore.getClientList());
             }
         });
@@ -272,64 +287,70 @@ export class WebSocketApi {
             await this._sendLatestLog(clientId, socket);
         });
 
-        socket.on('subscribe', async (clientId: string) => {
+        socket.on('subscribe', async (ackResponse, clientId: string) => {
+            if (!(ackResponse instanceof Function)) {
+                return;
+            }
+
+            ackResponse(true);
+
             if (this._clientStore.isClientExist(clientId)) {
                 socket.guiStatus!.subscribedClientIds.add(clientId);
-                await this._handleClientPolling(clientId, true);
+                await this._setClientPolling(clientId, true);
                 await this._sendLatestLog(clientId, socket);
             }
         });
 
-        socket.on('unsubscribe', async (clientId: string) => {
+        socket.on('unsubscribe', async (ackResponse, clientId: string) => {
+            if (!(ackResponse instanceof Function)) {
+                return;
+            }
+
+            ackResponse(true);
+
             if (this._clientStore.isClientExist(clientId)) {
                 socket.guiStatus!.subscribedClientIds.delete(clientId);
-                await this._handleClientPolling(clientId, false);
+                await this._setClientPolling(clientId, false);
             }
+        });
+
+        socket.on('unsubscribe', async (ackResponse, clientId: string) => {
+            if (!(ackResponse instanceof Function)) {
+                return;
+            }
+
+            ackResponse(true);
+
+            if (this._clientStore.isClientExist(clientId)) {
+                socket.guiStatus!.subscribedClientIds.delete(clientId);
+                await this._setClientPolling(clientId, false);
+            }
+        });
+
+        socket.on('unsubscribeAll', async (ackResponse) => {
+            if (!(ackResponse instanceof Function)) {
+                return;
+            }
+
+            ackResponse(true);
+
+            await this._handleUnsubscribeAll(socket);
         });
 
 
         socket.on('disconnect', async (err: any) => {
-
-            let allClientIds = new Set<string>();
-
-            for (let [socketId, socket] of await this._guiIo.sockets.sockets) {
-                let guiSocket = socket as Socket & LoginStatus & GuiStatus;
-                if (guiSocket.guiStatus) {
-                    
-                    
-                    guiSocket.guiStatus.subscribedClientIds.forEach((clientId) => {
-                        allClientIds.add(clientId);
-                    });
-
-                    guiSocket.guiStatus.subscribedClientIds = new Set<string>();
-                }
-            }
-
-            for (let clientId of allClientIds) {
-                await this._handleClientPolling(clientId, false);
-            }
+            await this._handleUnsubscribeAll(socket);
         });
     }
 
-    private async _broadcastToGuiSubscriber(
-        clientId: string,
-        log: SpabDataStruct.ILog & {clientId?: mongodb.ObjectId, obj?: any}
+    private async _handleUnsubscribeAll(
+        socket: Socket & LoginStatus & GuiStatus
     ) {
-        let spabLog = this._clientStore.addLog(log);
-
-        if (!spabLog) {
-            return;
-        }
-
-        for (let [socketId, socket] of await this._guiIo.sockets.sockets) {
-            try {
-                let guiSocket = socket as Socket & LoginStatus & GuiStatus;
-                if (guiSocket.loginStatus?.loggedIn) {
-                    if (guiSocket.guiStatus!.subscribedClientIds.has(clientId)) {
-                        await this._sendMsgAck(socket, 'log', spabLog);
-                    }
-                }
-            } catch (e) {}
+        if (socket.guiStatus) {
+            for (let clientId of socket.guiStatus.subscribedClientIds) {
+                socket.guiStatus!.subscribedClientIds.delete(clientId);
+                await this._setClientPolling(clientId, false);
+            }
         }
     }
 
@@ -345,19 +366,15 @@ export class WebSocketApi {
         }
 
         for (let spabLog of client.latestLogs) {
-            await this._sendMsgAck(socket, 'log', spabLog);
+            this._sendMsgAck(socket, 'log', [{
+                clientId,
+                ...spabLog
+            }]);
         }
     }
 
-    private async _handleClientPolling (
-        clientId: string,
-        isPolling: boolean
-    ): Promise<any>  {
 
-        if (this._clientStore.getSocketIdCount(clientId) <= 0) {
-            return;
-        }
-
+    private async _getClientSubscriberCount(clientId: string): Promise<number> {
         let count = 0;
         for (let [socketId, socket] of await this._guiIo.sockets.sockets) {
             try {
@@ -370,19 +387,61 @@ export class WebSocketApi {
             } catch (e) {}
         }
 
-        if (count !== 1) {
+        return count;
+    }
+
+    private async _setClientPolling (
+        clientId: string,
+        isPolling: boolean
+    ): Promise<any>  {
+
+        if (this._clientStore.getSocketIdCount(clientId) <= 0) {
             return;
         }
 
+        let count = await this._getClientSubscriberCount(clientId);
+
+        if (
+            (count === 1 && isPolling === true) ||
+            (count === 0 && isPolling === false)
+        ) {
+            this._sendToClient(clientId, 'polling', isPolling);
+        }
+    }
+
+    private _sendToClient (
+        clientId: string,
+        evt: string, 
+        val: any
+    ) {
         let client = this._clientStore.getClient(clientId);
         if (client) {
+
             for (let socketId of client.socketIds) {
-                let socket = this._guiIo.sockets.sockets.get(socketId);
+                let socket = this._clientIo.sockets.sockets.get(socketId);
 
                 if (socket) {
-                    await this._sendMsgAck(socket, 'isPolling', isPolling);
+                    this._sendMsgAck(socket, evt, val);
                 }
             }
+        }
+    }
+
+    private async _sendToGuiSubscriber(
+        clientId: string,
+        evt: string, 
+        val: any
+    ) {
+        console.log(val);
+        for (let [socketId, socket] of await this._guiIo.sockets.sockets) {
+            try {
+                let guiSocket = socket as Socket & LoginStatus & GuiStatus;
+                if (guiSocket.loginStatus?.loggedIn) {
+                    if (guiSocket.guiStatus!.subscribedClientIds.has(clientId)) {
+                        this._sendMsgAck(socket, evt, val);
+                    }
+                }
+            } catch (e) {}
         }
     }
 
@@ -393,7 +452,7 @@ export class WebSocketApi {
         for (let [socketId, socket] of await this._guiIo.sockets.sockets) {
             let guiSocket = socket as Socket & LoginStatus;
             if (guiSocket.loginStatus?.loggedIn) {
-                await this._sendMsgAck(guiSocket, evt, val);
+                this._sendMsgAck(guiSocket, evt, val);
             }
         }
     }
@@ -401,11 +460,11 @@ export class WebSocketApi {
     private async _sendMsgAck(
         socket: Socket, 
         evt: string, 
-        val: any
+        values: any[],
     ): Promise<any> {
         for (let i = 0; i < 3; i++) {
             try {
-                return await this._sendMsgAckOnce(socket, evt, val, (i + 1) * 10000);
+                return await this._sendMsgAckOnce(socket, evt, values, (i + 1) * 10000);
             } catch (e) { };
         }
     }
@@ -413,7 +472,7 @@ export class WebSocketApi {
     private _sendMsgAckOnce(
         socket: Socket, 
         evt: string, 
-        val: any,
+        values: any[],
         timeout: number
     ): Promise<any> {
         return new Promise<any>((resolve, reject) => {
@@ -421,9 +480,9 @@ export class WebSocketApi {
                 reject()
             }, timeout);
 
-            socket.emit(evt, val, (res: any) => {
+            socket.emit(evt, (res: any) => {
                 resolve(res);
-            })
+            }, ...values);
         })
     }
 

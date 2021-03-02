@@ -106,9 +106,9 @@ $root.SpabDataStruct = (function() {
             if (message.timestamp != null && Object.hasOwnProperty.call(message, "timestamp"))
                 writer.uint32(/* id 2, wireType 1 =*/17).double(message.timestamp);
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
-                writer.uint32(/* id 3, wireType 2 =*/26).string(message.type);
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.type);
             if (message.data != null && Object.hasOwnProperty.call(message, "data"))
-                writer.uint32(/* id 4, wireType 2 =*/34).bytes(message.data);
+                writer.uint32(/* id 5, wireType 2 =*/42).bytes(message.data);
             return writer;
         };
 
@@ -149,10 +149,10 @@ $root.SpabDataStruct = (function() {
                 case 2:
                     message.timestamp = reader.double();
                     break;
-                case 3:
+                case 4:
                     message.type = reader.string();
                     break;
-                case 4:
+                case 5:
                     message.data = reader.bytes();
                     break;
                 default:

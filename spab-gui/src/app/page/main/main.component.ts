@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, Renderer2, ViewChild } from '@angular/core';
 
 import olView from 'ol/View';
 import olMap from 'ol/Map';
@@ -43,13 +43,14 @@ import { UtilsService } from 'src/app/service/utils.service';
 export class MainComponent implements OnInit, OnDestroy  {
 
   @ViewChild('mainMap') mainMapElem!: ElementRef;
+  @ViewChild('clientSelect') clientSelect!: ElementRef;
 
   private mainMap: olMap;
-  
 
   constructor(
     private apiService: ApiService,
-    private utilsService: UtilsService
+    private utilsService: UtilsService,
+    private renderer: Renderer2
   ) {
     let initPosSet = false;
     let currentPos: Coordinate | undefined = [0, 0];
@@ -131,7 +132,7 @@ export class MainComponent implements OnInit, OnDestroy  {
   }
 
   ngOnInit(): void {
-    
+
   }
 
   ngAfterViewInit() {
@@ -142,15 +143,100 @@ export class MainComponent implements OnInit, OnDestroy  {
         this.mainMap.updateSize();
       }
     );
+
+    /*this.clientSelect.nativeElement.addEventListener('change', async (evt: Event) => {
+      await this.apiService.unsubscribeAll();
+
+      let selectedClientId = (evt.target as HTMLInputElement).value;
+      console.log(selectedClientId);
+
+      await this.apiService.unsubscribeAll();
+
+      if (selectedClientId) {
+        await this.apiService.subscribe(selectedClientId);
+      }
+    });*/
+
+    this.apiService.addLogListener('main', (clientId, log) => {
+      console.log(log.obj.buf);
+    });
+
+    /*this.apiService.addStatusListener('main', (online) => {
+      this.clientSelectItems.length = 1;
+
+      for (let client of this.apiService.clients) {
+        this.clientSelectItems.push({
+          selected: this.apiService.subscribedClientIds.has(client.clientId),
+          name: client.name,
+          text: (client.connected ? '⬤' : '◯') + client.name,
+          clientId: client.clientId
+        });
+      }
+    });
+
+    this.apiService.addClientStatusListener('main', (clientId, online) => {
+      for (let item of this.clientSelectItems) {
+        if (item.clientId === clientId) {
+          item.text = (online ? '⬤' : '◯') + item.name;
+        }
+      }
+    });*/
   }
 
   ngOnDestroy() {
     this.utilsService.removeResizeListener(
       this.mainMapElem.nativeElement
     );
+
+    this.apiService.removeLogListener('main');
   }
 
-  get clients() {
-    return this.apiService.clients;
+
+
+  private _clientSelectValue: string = '';
+
+  get clientSelectValue() {
+    return this._clientSelectValue;
+  }
+
+  set clientSelectValue(clientId: string) {
+    this._clientSelectValue = clientId;
+
+    setTimeout(async () => {
+      await this.apiService.unsubscribeAll();
+
+      if (clientId !== '') {
+        await this.apiService.subscribe(clientId);
+      }
+    }, 0);
+  }
+
+  get clientSelectItems() {
+    let items: {
+      selected: boolean,
+      text: string,
+      clientId: string
+    }[] = [{
+      selected: true,
+      text: 'Disconnected',
+      clientId: ''
+    }];
+
+
+    for (let client of this.apiService.clients) {
+      let selected = this.apiService.subscribedClientIds.has(client.clientId);
+
+      items.push({
+        selected: selected,
+        text: (client.connected ? '🟢' : '🔴') + ' ' + client.name,
+        clientId: client.clientId
+      });
+
+      if (selected) {
+        items[0].selected = false;
+      }
+    }
+
+    return items;
   }
 }
