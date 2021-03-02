@@ -87,18 +87,6 @@ export class MainController {
             }, 30000);
         });
 
-        this._restartEventLoop();
-    }
-
-    private _connectHandler() {
-        console.log('server connected');
-
-        this._socket.sendBuffer = [];
-
-        this._sync();
-
-        this._restartEventLoop();
-
         this._socket.on('polling', (isPolling: boolean, ackResponse: any) => {
             console.log('polling');
 
@@ -110,6 +98,18 @@ export class MainController {
 
             this.isPolling = isPolling;
         });
+
+        this._restartEventLoop();
+    }
+
+    private _connectHandler() {
+        console.log('server connected');
+
+        this._socket.sendBuffer = [];
+
+        this._sync();
+
+        this._restartEventLoop();
     }
 
     private _disconnectHandler(err: any) {
@@ -165,7 +165,7 @@ export class MainController {
                 type: type,
                 data: data
             };
-            this._socket.emit('log', SpabDataStruct.LogClient.encode(log).finish());
+            this._sendMsgAck('log', [SpabDataStruct.LogClient.encode(log).finish()], false);
         } else {
             this._logClientDb.add(type, data);
         }
@@ -232,13 +232,14 @@ export class MainController {
 
                 if (log && this._checkOnline()) {
                     if (
-                        !(await this._sendMsgAck('log', [
+                        (await this._sendMsgAck('log', [
                             SpabDataStruct.LogClient.encode(log!).finish()
                         ], true))
                     ) {
+                        await this._logClientDb.remove(log.id!, log.timestamp!, log.type!);
+                    } else {
                         throw 'network error';
                     }
-
                 } else {
                     this._syncTimer = null;
                     this._logClientDb.vacuum();
