@@ -99,7 +99,15 @@ export class MainController {
         
         this._restartEventLoop();
 
-        this._socket.on('isPolling', (isPolling: boolean) => {
+        this._socket.on('polling', (isPolling: boolean, ackResponse: Function) => {
+            console.log('polling');
+            
+            if (!ackResponse) {
+                return;
+            }
+
+            ackResponse(true);
+
             this.isPolling = isPolling;
         });
     }
