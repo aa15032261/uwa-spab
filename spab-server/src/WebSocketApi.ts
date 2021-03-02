@@ -139,7 +139,7 @@ export class WebSocketApi {
 
         if (this._clientStore.addClientSocketId(clientId, socket.id)) {
             // notify online
-            this._broadcastToGui('online', clientId, true);
+            this._broadcastToGui('online', [clientId], true);
 
             let count = await this._getClientSubscriberCount(clientId);
             if (count > 0) {
@@ -150,7 +150,7 @@ export class WebSocketApi {
         socket.on('disconnect', () => {
             if (this._clientStore.removeClientSocketId(clientId, socket.id)) {
                 // notify offline
-                this._broadcastToGui('offline', clientId, true);
+                this._broadcastToGui('offline', [clientId], true);
             }
         });
 
@@ -361,13 +361,13 @@ export class WebSocketApi {
 
     private async _broadcastToGui(
         evt: string, 
-        val: any,
+        values: any[],
         ack: boolean
     ): Promise<any>  {
         for (let [socketId, socket] of await this._guiIo.sockets.sockets) {
             let guiSocket = socket as Socket & LoginStatus;
             if (guiSocket.loginStatus?.loggedIn) {
-                this._sendMsgAck(guiSocket, evt, val, ack);
+                this._sendMsgAck(guiSocket, evt, values, ack);
             }
         }
     }

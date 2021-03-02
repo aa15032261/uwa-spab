@@ -145,7 +145,7 @@ export class MainComponent implements OnInit, OnDestroy  {
     );
 
     this.apiService.addLogListener('main', (clientId, spabLog) => {
-      console.log(spabLog.obj.buf);
+      //console.log(spabLog.obj.buf);
     });
   }
 

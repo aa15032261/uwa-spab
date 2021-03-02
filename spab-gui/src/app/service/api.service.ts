@@ -78,10 +78,7 @@ export class ApiService {
   }
 
   private async _connectHandler() {
-    let newClients = await this._sendMsgAck(
-      'get',
-      ['clients']
-    );
+    let newClients = await this._sendMsgAck('get', ['clients'], true);
 
     if (!newClients) {
       return;
@@ -150,23 +147,10 @@ export class ApiService {
           this._notifyLogListeners(logGui.clientId, spabLog);
         }
       } catch (err) {}
-
-      /*if (!log.clientId) {
-        return;
-      }
-
-      let clientId = '';
-      if (log.clientId) {
-        let spabLog = this._addLog(log.clientId, log);
-
-        if (spabLog) {
-          this._notifyLogListeners(clientId, spabLog);
-        }
-      }*/
     });
 
     for (let subscribedClientId of this._subscribedClientIds) {
-      this._sendMsgAck('subscribe', [subscribedClientId]);
+      this._sendMsgAck('subscribe', [subscribedClientId], true);
     }
 
     this._notifyStatusListeners();
@@ -236,11 +220,16 @@ export class ApiService {
   private async _sendMsgAck(
     evt: string,
     values: any[],
+    ack: boolean
   ): Promise<any> {
-    for (let i = 0; i < 3; i++) {
-      try {
-        return await this._sendMsgAckOnce(evt, values, (i + 1) * 10000);
-      } catch (e) { };
+    if (ack) {
+      for (let i = 0; i < 3; i++) {
+        try {
+          return await this._sendMsgAckOnce(evt, values, (i + 1) * 10000);
+        } catch (e) { };
+      }
+    } else {
+      this._socket.emit(evt, ...values);
     }
     return;
   }
@@ -266,7 +255,7 @@ export class ApiService {
       if (client.clientId === clientId) {
         if (!this._subscribedClientIds.has(clientId)) {
           this._subscribedClientIds.add(clientId);
-          await this._sendMsgAck('subscribe', [clientId]);
+          await this._sendMsgAck('subscribe', [clientId], true);
         }
       }
     }
@@ -274,7 +263,7 @@ export class ApiService {
 
   public async unsubscribeAll() {
     this._subscribedClientIds = new Set<string>();
-    await this._sendMsgAck('unsubscribeAll', []);
+    await this._sendMsgAck('unsubscribeAll', [], true);
   }
 
   private _notifyLogListeners(clientId: string, log: SpabLog) {
