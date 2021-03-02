@@ -1,1 +1,13 @@
-<div id="map" class="fullscreen-map"></div>
+<spab-sidebar>
+    <div sidebar>
+        <select class="custom-select">
+            <option value="" selected>Disconnect all</option>
+            <option *ngFor="let client of clients" [value]="client.clientId">
+                {{'[' + (client.connected ? 'Online ' : 'Offline') + '] ' + client.name}}
+            </option>
+        </select>
+    </div>
+    <div content>
+        <div #mainMap class="fullscreen-map"></div>
+    </div>
+</spab-sidebar>

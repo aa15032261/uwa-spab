@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 
 import olView from 'ol/View';
 import olMap from 'ol/Map';
@@ -31,14 +31,7 @@ import {
   defaults as olControlDefaultControls
 } from 'ol/control';
 import { ApiService } from 'src/app/service/api.service';
-
-
-/*
-import * as olProj from 'ol/proj';
-import { Tile as olTile, Vector as olVector } from 'ol/layer';
-import { Attribution as olAttribution, FullScreen as olFullScreen, defaults as olDefaultControls } from 'ol/control';
-import { Circle as olCircle, Fill as olFill, Stroke as olStroke, Style as olStyle } from 'ol/style';
-import olPoint from 'ol/geom/Point';*/
+import { UtilsService } from 'src/app/service/utils.service';
 
 
 
@@ -47,16 +40,17 @@ import olPoint from 'ol/geom/Point';*/
   templateUrl: './main.component.html',
   styleUrls: ['./main.component.scss']
 })
-export class MainComponent implements OnInit {
+export class MainComponent implements OnInit, OnDestroy  {
 
-  constructor(apiService: ApiService) {
-    
-  }
+  @ViewChild('mainMap') mainMapElem!: ElementRef;
 
-  ngOnInit(): void {
-    let mapPadding = [0, 334, 0, 0];
+  private mainMap: olMap;
+  
 
-
+  constructor(
+    private apiService: ApiService,
+    private utilsService: UtilsService
+  ) {
     let initPosSet = false;
     let currentPos: Coordinate | undefined = [0, 0];
 
@@ -100,7 +94,6 @@ export class MainComponent implements OnInit {
 
         if (!initPosSet) {
           mapView.fit(geo, {
-            padding: mapPadding,
             maxZoom: 12
           });
           initPosSet = true;
@@ -116,23 +109,16 @@ export class MainComponent implements OnInit {
 
     let openSeaMapLayer = new olLayerTile({
       source: new olSourceOSM({
-        attributions: [
-          '© <a href="http://www.openseamap.org/">OpenSeaMap</a> contributors.',
-          olSourceOSMAttribution
-        ],
         opaque: false,
         url: 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
       })
     });
 
-    let map = new olMap({
-      target: 'map',
-      controls: olControlDefaultControls({ attribution: false }).extend([
-        new olControlAttribution({
-          collapsible: true,
-          collapseLabel: '<'
-        })
-      ]),
+    // '© <a href="http://www.openseamap.org/">OpenSeaMap</a> contributors.',
+    // olSourceOSMAttribution
+
+    this.mainMap = new olMap({
+      controls: [],
       layers: [
         new olLayerTile({
           source: new olSourceOSM()
@@ -144,4 +130,27 @@ export class MainComponent implements OnInit {
     });
   }
 
+  ngOnInit(): void {
+    
+  }
+
+  ngAfterViewInit() {
+    this.mainMap.setTarget(this.mainMapElem.nativeElement);
+    this.utilsService.addResizeListener(
+      this.mainMapElem.nativeElement,
+      () => {
+        this.mainMap.updateSize();
+      }
+    );
+  }
+
+  ngOnDestroy() {
+    this.utilsService.removeResizeListener(
+      this.mainMapElem.nativeElement
+    );
+  }
+
+  get clients() {
+    return this.apiService.clients;
+  }
 }

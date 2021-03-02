@@ -1,0 +1,19 @@
+<div class="sidebar-layout" [ngClass]="{'sidebar-close': isOpen === false}">
+    <div class="position-relative w-100 h-100">
+
+        <button class="btn btn-primary p-0 border-0 sidebar-btn" (click)="isOpen = !isOpen;">
+            <div class="material-icons">&#xe9bd;</div>
+        </button>
+
+        <div class="sidebar">
+            <div class="position-relative w-100 h-100">
+                <ng-content select="[sidebar]"></ng-content>
+            </div>
+        </div>
+        <div class="content">
+            <div class="position-relative w-100 h-100">
+                <ng-content select="[content]"></ng-content>
+            </div>
+        </div>
+    </div>
+</div>

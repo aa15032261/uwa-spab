@@ -10,16 +10,12 @@ import * as mongodb from 'mongodb'
 import { authenticator, totp } from 'otplib';
 import { SessionController } from './SessionController';
 import { LoginController, LoginStatus } from './LoginController';
+import { ClientStore } from './ClientStore';
 
-interface SpabClient {
-    clientId: string,
-    name: string,
-    socketIds: Set<string>,
-    latestLogs: {
-        type: 'camera' | 'sensor',
-        timestamp: number,
-        obj: any
-    }[]
+interface GuiStatus {
+    guiStatus?: {
+        subscribedClientIds: Set<string>
+    }
 }
 
 export class WebSocketApi {
@@ -29,8 +25,7 @@ export class WebSocketApi {
     private _clientIo: Server;
     private _guiIo: Server;
 
-    private _clientCache = new Map<string, SpabClient>();
-
+    private _clientStore: ClientStore;
 
     constructor(
         httpServer: http.Server, 
@@ -39,6 +34,7 @@ export class WebSocketApi {
     ) {
 
         totp.options = { window: [-1, 1] };
+        this._clientStore = new ClientStore();
         
         this._clientIo = new Server(httpServer, {
             path: CLIENT_API_PATH
@@ -65,9 +61,7 @@ export class WebSocketApi {
                     throw 'authentication failed';
                 }
 
-
                 this._setupClientSocket(clientId, socket);
-
             } catch (e) {
                 socket.disconnect(true);
             }
@@ -95,9 +89,10 @@ export class WebSocketApi {
                 if (!(socket.loginStatus?.loggedIn)) {
                     throw 'invalid request';
                 }
+
+                this._setupGuiSocket(socket);
             } catch (e) {
                 console.log(e);
-                console.log(socket.handshake);
                 socket.disconnect(true);
             }
         });
@@ -131,30 +126,26 @@ export class WebSocketApi {
             return clientObj._id.toString();
         }
 
-        await this._addNewClientToCache(
+        await this._clientStore.createClient(
             clientObj._id.toString(),
             clientObj.name
         );
+        
         return;
     }
 
     private _setupClientSocket(clientId: string, socket: Socket) {
         console.log('connect');
 
-        //TODO: properly handle polling
-        socket.emit('isPolling', true);
-
-        let client = this._clientCache.get(clientId);
-        if (client) {
-            client.socketIds.add(socket.id);
-            // TODO: notify online
+        if (this._clientStore.addClientSocketId(clientId, socket.id)) {
+            // notify online
+            this._broadcastToGui('online', clientId);
         }
 
         socket.on('disconnect', () => {
-            let client = this._clientCache.get(clientId);
-            if (client) {
-                client.socketIds.delete(socket.id);
-                // TODO: notify offline
+            if (this._clientStore.removeClientSocketId(clientId, socket.id)) {
+                // notify offline
+                this._broadcastToGui('offline', clientId);
             }
         });
 
@@ -209,14 +200,14 @@ export class WebSocketApi {
 
 
             try {
-                let logObj: SpabDataStruct.ILog & {clientId?: string, obj?: any} = log;
+                let logObj: SpabDataStruct.ILog & {clientId?: mongodb.ObjectId, obj?: any} = log;
+                logObj.clientId = new mongodb.ObjectId(clientId);
+
                 let lastLogDataFilter: any = {
-                    clientId: clientId,
+                    clientId: logObj.clientId,
                     type: log.type
                 };
                 let logFreq = 60 * 1000;
-
-                logObj.clientId = clientId;
 
                 if (log.type === 'camera') {
                     logObj.obj = SpabDataStruct.CameraData.decode(logObj.data!);
@@ -233,94 +224,213 @@ export class WebSocketApi {
                 // forcefully remove deleted properties
                 logObj = {...logObj};
 
-                // TODO: add to clientCache
-
                 let lastLogTimestamp = 0;
                 if (!log?.id) {
                     // find last log's timestamp
-                    lastLogTimestamp = (await this._db!.collection('log').find(lastLogDataFilter, {
+                    lastLogTimestamp = (await this._db!.collection('log').find(
+                        lastLogDataFilter, 
+                        {
                             projection: {
                                 _id: 0,
                                 timestamp: 1
                             }
-                        })
-                        .sort({'timestamp': -1})
-                        .limit(1)
-                        .toArray())[0]?.timestamp ?? 0;
+                        }
+                    )
+                    .sort({'timestamp': -1})
+                    .limit(1)
+                    .toArray())[0]?.timestamp ?? 0;
                 }
 
                 if (logObj.timestamp! - lastLogTimestamp > logFreq) {
                     await this._db!.collection('log').insertOne(logObj);
                 }
 
-                this._guiIo.emit('log', log);
+                this._broadcastToGuiSubscriber(clientId, logObj);
             } catch (e) {
                 console.log(e);
             }
         });
     }
 
-    public updateDbPool(db: mongodb.Db) {
-        this._db = db;
-        this._updateClientList();
+    private _setupGuiSocket(socket: Socket & LoginStatus & GuiStatus) {
+        socket.guiStatus = {
+            subscribedClientIds: new Set<string>()
+        }
+
+        socket.on('get', (cmd: string, ackResponse) => {
+            if (!ackResponse) {
+                return;
+            }
+
+            if (cmd === 'clients') {
+                console.log(this._clientStore.getClientList());
+                ackResponse(this._clientStore.getClientList());
+            }
+        });
+
+        socket.on('log', async (clientId: string) => {
+            await this._sendLatestLog(clientId, socket);
+        });
+
+        socket.on('subscribe', async (clientId: string) => {
+            if (this._clientStore.isClientExist(clientId)) {
+                socket.guiStatus!.subscribedClientIds.add(clientId);
+                await this._handleClientPolling(clientId, true);
+                await this._sendLatestLog(clientId, socket);
+            }
+        });
+
+        socket.on('unsubscribe', async (clientId: string) => {
+            if (this._clientStore.isClientExist(clientId)) {
+                socket.guiStatus!.subscribedClientIds.delete(clientId);
+                await this._handleClientPolling(clientId, false);
+            }
+        });
+
+
+        socket.on('disconnect', async (err: any) => {
+
+            let allClientIds = new Set<string>();
+
+            for (let [socketId, socket] of await this._guiIo.sockets.sockets) {
+                let guiSocket = socket as Socket & LoginStatus & GuiStatus;
+                if (guiSocket.guiStatus) {
+                    
+                    
+                    guiSocket.guiStatus.subscribedClientIds.forEach((clientId) => {
+                        allClientIds.add(clientId);
+                    });
+
+                    guiSocket.guiStatus.subscribedClientIds = new Set<string>();
+                }
+            }
+
+            for (let clientId of allClientIds) {
+                await this._handleClientPolling(clientId, false);
+            }
+        });
     }
 
-    private async _updateClientList() {
-        try {
-            let newClientIdSet = new Set<string>();
-            let existingClientIdSet = new Set<string>();
-
-            let clientObjs = await this._db!.collection('client').find({
-
-            }, {
-                projection: {
-                    _id: 1,
-                    name: 1
-                }
-            }).toArray();
-
-            for (let clientObj of clientObjs) {
-                clientObj.clientId = clientObj._id.toString();
-                newClientIdSet.add(clientObj._id.toString());
-            }
-
-            // remove deleted clients from the list
-            for (let [clientId, client] of this._clientCache) {
-                if (newClientIdSet.has(client.clientId)) {
-                    existingClientIdSet.add(clientId);
-                } else {
-                    this._clientCache.delete(clientId);
-                }
-            }
-
-
-
-            // add new clients to the list
-            for (let clientObj of clientObjs) {
-                if (!existingClientIdSet.has(clientObj.clientId)) {
-                    await this._addNewClientToCache(clientObj.clientId, clientObj.name);
-                }
-            }
-            
-        } catch (e) { }
-    }
-
-    private async _addNewClientToCache(
+    private async _broadcastToGuiSubscriber(
         clientId: string,
-        name: string
+        log: SpabDataStruct.ILog & {clientId?: mongodb.ObjectId, obj?: any}
     ) {
-        if (!this._clientCache.has(clientId)) {
-            let client = {
-                clientId: clientId,
-                name: name,
-                socketIds: new Set<string>(),
-                latestLogs: []
-            };
+        let spabLog = this._clientStore.addLog(log);
 
-            // TODO: populate object
+        if (!spabLog) {
+            return;
+        }
 
-
-            this._clientCache.set(clientId, client);
+        for (let [socketId, socket] of await this._guiIo.sockets.sockets) {
+            try {
+                let guiSocket = socket as Socket & LoginStatus & GuiStatus;
+                if (guiSocket.loginStatus?.loggedIn) {
+                    if (guiSocket.guiStatus!.subscribedClientIds.has(clientId)) {
+                        await this._sendMsgAck(socket, 'log', spabLog);
+                    }
+                }
+            } catch (e) {}
         }
     }
+
+
+    private async _sendLatestLog(
+        clientId: string,
+        socket: Socket
+    ) {
+        let client = this._clientStore.getClient(clientId);
+
+        if (!client) {
+            return;
+        }
+
+        for (let spabLog of client.latestLogs) {
+            await this._sendMsgAck(socket, 'log', spabLog);
+        }
+    }
+
+    private async _handleClientPolling (
+        clientId: string,
+        isPolling: boolean
+    ): Promise<any>  {
+
+        if (this._clientStore.getSocketIdCount(clientId) <= 0) {
+            return;
+        }
+
+        let count = 0;
+        for (let [socketId, socket] of await this._guiIo.sockets.sockets) {
+            try {
+                let guiSocket = socket as Socket & LoginStatus & GuiStatus;
+                if (guiSocket.loginStatus?.loggedIn) {
+                    if (guiSocket.guiStatus!.subscribedClientIds.has(clientId)) {
+                        count++;
+                    }
+                }
+            } catch (e) {}
+        }
+
+        if (count !== 1) {
+            return;
+        }
+
+        let client = this._clientStore.getClient(clientId);
+        if (client) {
+            for (let socketId of client.socketIds) {
+                let socket = this._guiIo.sockets.sockets.get(socketId);
+
+                if (socket) {
+                    await this._sendMsgAck(socket, 'isPolling', isPolling);
+                }
+            }
+        }
+    }
+
+    private async _broadcastToGui(
+        evt: string, 
+        val: any
+    ): Promise<any>  {
+        for (let [socketId, socket] of await this._guiIo.sockets.sockets) {
+            let guiSocket = socket as Socket & LoginStatus;
+            if (guiSocket.loginStatus?.loggedIn) {
+                await this._sendMsgAck(guiSocket, evt, val);
+            }
+        }
+    }
+
+    private async _sendMsgAck(
+        socket: Socket, 
+        evt: string, 
+        val: any
+    ): Promise<any> {
+        for (let i = 0; i < 3; i++) {
+            try {
+                return await this._sendMsgAckOnce(socket, evt, val, (i + 1) * 10000);
+            } catch (e) { };
+        }
+    }
+
+    private _sendMsgAckOnce(
+        socket: Socket, 
+        evt: string, 
+        val: any,
+        timeout: number
+    ): Promise<any> {
+        return new Promise<any>((resolve, reject) => {
+            setTimeout(() => {
+                reject()
+            }, timeout);
+
+            socket.emit(evt, val, (res: any) => {
+                resolve(res);
+            })
+        })
+    }
+
+
+    public updateDbPool(db: mongodb.Db) {
+        this._db = db;
+        this._clientStore.updateDbPool(db);
+    }
+    
 }

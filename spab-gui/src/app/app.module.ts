@@ -18,18 +18,21 @@ import { TooltipModule } from 'ngx-bootstrap/tooltip';
 
 import { AppComponent } from './app.component';
 import { MainComponent } from './page/main/main.component';
+import { SidebarComponent } from './page/sidebar/sidebar.component';
 
 
 
 @NgModule({
   declarations: [
     AppComponent,
-    MainComponent
+    MainComponent,
+    SidebarComponent
   ],
   imports: [
     RouterModule.forRoot(
       [
-        {path: '', component: MainComponent}
+        {path: '', component: MainComponent},
+        {path: 's', component: SidebarComponent}
       ], 
       { relativeLinkResolution: 'corrected' }
     ),

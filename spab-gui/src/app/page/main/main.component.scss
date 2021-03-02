@@ -1,5 +1,14 @@
 @import "~ol/ol.css";
 
+::ng-deep .ol-control {
+    padding: 0;
+    background-color: rgba(255, 255, 255, 0.85);
+}
+
+::ng-deep .ol-control:hover {
+    background-color: rgba(255, 255, 255, 0.85);
+}
+
 ::ng-deep .ol-zoom {
     left: .5em;
 }
