@@ -209,29 +209,29 @@ export class ApiService {
   private async _sendMsgAck(
     evt: string, 
     values: any[],
-): Promise<any> {
-    for (let i = 0; i < 3; i++) {
-        try {
-            return await this._sendMsgAckOnce(evt, values, (i + 1) * 10000);
-        } catch (e) { };
-    }
-}
+  ): Promise<any> {
+      for (let i = 0; i < 3; i++) {
+          try {
+              return await this._sendMsgAckOnce(evt, values, (i + 1) * 10000);
+          } catch (e) { };
+      }
+  }
 
-  private _sendMsgAckOnce(
-    evt: string, 
-    values: any[],
-    timeout: number
-): Promise<any> {
-    return new Promise<any>((resolve, reject) => {
-        setTimeout(() => {
-            reject()
-        }, timeout);
+    private _sendMsgAckOnce(
+      evt: string, 
+      values: any[],
+      timeout: number
+  ): Promise<any> {
+      return new Promise<any>((resolve, reject) => {
+          setTimeout(() => {
+              reject()
+          }, timeout);
 
-        this._socket.emit(evt, (res: any) => {
-            resolve(res);
-        }, ...values);
-    })
-}
+          this._socket.emit(evt, (res: any) => {
+              resolve(res);
+          }, ...values);
+      })
+  }
 
   public async subscribe(clientId: string) {
     for (let client of this._clients) {
