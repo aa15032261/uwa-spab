@@ -5,12 +5,12 @@ import { interval } from 'rxjs';
 import { io, Socket } from "socket.io-client";
 
 interface SpabClientSummary {
-  clientId: string, 
-  name: string, 
+  clientId: string,
+  name: string,
   connected: boolean,
   latestLogs: SpabLog[]
 }
-interface SpabLog  {
+interface SpabLog {
   type: 'camera' | 'sensor',
   timestamp: number,
   obj: any
@@ -37,13 +37,13 @@ export class ApiService {
     interval(5 * 60 * 1000).subscribe(async () => {
       try {
         await http.get('/api/heartbeat').toPromise();
-      } catch(e) { }
+      } catch (e) { }
     });
 
 
     // init socket io
     this._socket = io(
-      'wss://spab.toms.directory', 
+      'wss://spab.toms.directory',
       {
         path: '/api/gui_ws/',
         rejectUnauthorized: false,
@@ -70,7 +70,7 @@ export class ApiService {
 
       // reconnect in 15 seconds if kicked by the server
       setTimeout(() => {
-          this._socket.connect();
+        this._socket.connect();
       }, 15000);
     });
   }
@@ -117,7 +117,7 @@ export class ApiService {
       }
     });
 
-    this._socket.on('log', (log: SpabLog & {clientId?: string}, ackResponse: Function) => {
+    this._socket.on('log', (log: SpabLog & { clientId?: string }, ackResponse: Function) => {
       if (!ackResponse) {
         return;
       }
@@ -127,7 +127,7 @@ export class ApiService {
       if (!log.clientId) {
         return;
       }
-  
+
       let clientId = '';
       if (log.clientId) {
         let spabLog = this._addLog(log.clientId, log);
@@ -177,61 +177,62 @@ export class ApiService {
 
     for (let spabLog of selectedClient.latestLogs) {
       if (
-          log.type === spabLog.type &&
-          (
-              log.type === 'sensor' ||
-              (log.type === 'camera' && log.obj.name === spabLog.obj.name)
-          )
+        log.type === spabLog.type &&
+        (
+          log.type === 'sensor' ||
+          (log.type === 'camera' && log.obj.name === spabLog.obj.name)
+        )
       ) {
-          if (log.timestamp && log.timestamp > spabLog.timestamp) {
-              spabLog.timestamp = log.timestamp;
-              spabLog.obj = log.obj;
-              return spabLog;
-          } else {
-              return;
-          }
+        if (log.timestamp && log.timestamp > spabLog.timestamp) {
+          spabLog.timestamp = log.timestamp;
+          spabLog.obj = log.obj;
+          return spabLog;
+        } else {
+          return;
+        }
       }
     }
 
     if (log.timestamp && (log.type === 'sensor' || log.type === 'camera')) {
-        let spabLog: SpabLog = {
-            type: log.type,
-            timestamp: log.timestamp!,
-            obj: log.obj
-        };
-        selectedClient.latestLogs.push(spabLog);
-        return spabLog;
+      let spabLog: SpabLog = {
+        type: log.type,
+        timestamp: log.timestamp!,
+        obj: log.obj
+      };
+      selectedClient.latestLogs.push(spabLog);
+      return spabLog;
     }
-    
+
     return;
   }
 
   private async _sendMsgAck(
-    evt: string, 
+    evt: string,
     values: any[],
-): Promise<any> {
+  ): Promise<any> {
     for (let i = 0; i < 3; i++) {
-        try {
-            return await this._sendMsgAckOnce(evt, values, (i + 1) * 10000);
-        } catch (e) { };
+      try {
+        return await this._sendMsgAckOnce(evt, values, (i + 1) * 10000);
+      } catch (e) { };
     }
-}
+    return;
+  }
 
   private _sendMsgAckOnce(
-    evt: string, 
+    evt: string,
     values: any[],
     timeout: number
-): Promise<any> {
+  ): Promise<any> {
     return new Promise<any>((resolve, reject) => {
-        setTimeout(() => {
-            reject()
-        }, timeout);
+      setTimeout(() => {
+        reject()
+      }, timeout);
 
-        this._socket.emit(evt, (res: any) => {
-            resolve(res);
-        }, ...values);
+      this._socket.emit(evt, (res: any) => {
+        resolve(res);
+      }, ...values);
     })
-}
+  }
 
   public async subscribe(clientId: string) {
     for (let client of this._clients) {
@@ -290,7 +291,7 @@ export class ApiService {
       cb(this._socket.connected);
     }
   }
-  public addStatusListener(id: string, cb:(online: boolean) => void) {
+  public addStatusListener(id: string, cb: (online: boolean) => void) {
     this._statustListeners.set(id, cb);
     cb(this._socket.connected);
   }

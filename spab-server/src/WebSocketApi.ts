@@ -467,6 +467,8 @@ export class WebSocketApi {
                 return await this._sendMsgAckOnce(socket, evt, values, (i + 1) * 10000);
             } catch (e) { };
         }
+
+        return;
     }
 
     private _sendMsgAckOnce(
