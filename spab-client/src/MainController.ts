@@ -99,10 +99,10 @@ export class MainController {
         
         this._restartEventLoop();
 
-        this._socket.on('polling', (isPolling: boolean, ackResponse: Function) => {
+        this._socket.on('polling', (ackResponse: any, isPolling: boolean, ) => {
             console.log('polling');
             
-            if (!ackResponse) {
+            if (!(ackResponse instanceof Function)) {
                 return;
             }
 
@@ -231,27 +231,14 @@ export class MainController {
                 let log = await this._logDb.getFirst();
 
                 if (log && this._checkOnline()) {
-                    await (new Promise((resolve, reject) => {
-                        let _timer = setTimeout(() => {
-                            reject('sync timeout');
-                        }, 30000);
-
-                        this._socket.emit(
-                            'log',
-                            SpabDataStruct.Log.encode(log!).finish(),
-                            (ack: boolean) => {
-                                clearTimeout(_timer);
-
-                                this._logDb.remove(
-                                    log!.id!,
-                                    log!.timestamp!,
-                                    log!.type!
-                                );
-
-                                resolve(undefined);
-                            }
-                        );
-                    }));
+                    if (
+                        !(await this._sendMsgAck('log', [
+                            SpabDataStruct.Log.encode(log!).finish()
+                        ]))
+                    ) {
+                        throw 'network error';
+                    }
+                    
                 } else {
                     this._syncTimer = null;
                     this._logDb.vacuum();
@@ -270,4 +257,33 @@ export class MainController {
             }, 1000);
         }
     }
+
+    private async _sendMsgAck(
+        evt: string, 
+        values: any[],
+      ): Promise<any> {
+          for (let i = 0; i < 3; i++) {
+              try {
+                  return await this._sendMsgAckOnce(evt, values, (i + 1) * 10000);
+              } catch (e) { };
+          }
+
+          return;
+      }
+    
+        private _sendMsgAckOnce(
+          evt: string, 
+          values: any[],
+          timeout: number
+      ): Promise<any> {
+          return new Promise<any>((resolve, reject) => {
+              setTimeout(() => {
+                  reject()
+              }, timeout);
+    
+              this._socket.emit(evt, (res: any) => {
+                  resolve(res);
+              }, ...values);
+          })
+      }
 }
