@@ -1,8 +1,15 @@
 package SpabDataStruct;
 syntax = "proto3";
 
-message Log {
+message LogClient {
     double id = 1;
+    double timestamp = 2;
+    string type = 4;
+    bytes data = 5;
+}
+
+message LogGui {
+    string clientId = 1;
     double timestamp = 2;
     string type = 4;
     bytes data = 5;

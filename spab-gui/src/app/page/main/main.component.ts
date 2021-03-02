@@ -144,43 +144,9 @@ export class MainComponent implements OnInit, OnDestroy  {
       }
     );
 
-    /*this.clientSelect.nativeElement.addEventListener('change', async (evt: Event) => {
-      await this.apiService.unsubscribeAll();
-
-      let selectedClientId = (evt.target as HTMLInputElement).value;
-      console.log(selectedClientId);
-
-      await this.apiService.unsubscribeAll();
-
-      if (selectedClientId) {
-        await this.apiService.subscribe(selectedClientId);
-      }
-    });*/
-
-    this.apiService.addLogListener('main', (clientId, log) => {
-      console.log(log.obj.buf);
+    this.apiService.addLogListener('main', (clientId, spabLog) => {
+      console.log(spabLog.obj.buf);
     });
-
-    /*this.apiService.addStatusListener('main', (online) => {
-      this.clientSelectItems.length = 1;
-
-      for (let client of this.apiService.clients) {
-        this.clientSelectItems.push({
-          selected: this.apiService.subscribedClientIds.has(client.clientId),
-          name: client.name,
-          text: (client.connected ? '⬤' : '◯') + client.name,
-          clientId: client.clientId
-        });
-      }
-    });
-
-    this.apiService.addClientStatusListener('main', (clientId, online) => {
-      for (let item of this.clientSelectItems) {
-        if (item.clientId === clientId) {
-          item.text = (online ? '⬤' : '◯') + item.name;
-        }
-      }
-    });*/
   }
 
   ngOnDestroy() {

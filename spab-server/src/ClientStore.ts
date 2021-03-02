@@ -2,6 +2,11 @@ import * as mongodb from 'mongodb';
 import { SpabDataStruct } from "./../../spab-data-struct/SpabDataStruct";
 
 
+interface DbLog extends SpabDataStruct.ILogClient {
+    clientId?: mongodb.ObjectId, 
+    obj?: any
+}
+
 interface SpabLog  {
     type: 'camera' | 'sensor',
     timestamp: number,
@@ -127,6 +132,8 @@ class ClientStore {
             ]).toArray();
 
             for (let log of latestCameraLogs) {
+                log.doc.obj.buf = log.doc.obj.buf?.buffer;
+
                 client.latestLogs.push({
                     timestamp: log.doc.timestamp,
                     type: log.doc.type,
@@ -188,8 +195,138 @@ class ClientStore {
         return this._clientStore.get(clientId);
     }
 
+    public async addLogEncoded(
+        clientId: string,
+        logClientEncoded: any
+    ): Promise<SpabLog | undefined> {
+
+        let logClient: SpabDataStruct.ILogClient | undefined;
+        let clientOid: mongodb.ObjectId | undefined;
+
+        try {
+            logClient = SpabDataStruct.LogClient.decode(new Uint8Array(logClientEncoded));
+            clientOid = new mongodb.ObjectId(clientId);
+
+            let client = await this._db!.collection('client').findOne({
+                _id: clientOid
+            }, {
+                projection: {
+                    _id: 1
+                }
+            });
+
+            if (!client) {
+                return;
+            }
+
+            if (!logClient || !clientOid) {
+                return;
+            }
+
+            if (logClient.id) {
+                // cached data
+
+                // invalid timestamp
+                if (logClient.timestamp! > (new Date()).getTime()) {
+                    return;
+                }
+
+                // check if the cached log is in the database
+                let existingLog = await this._db!.collection('log').findOne({
+                    id: logClient.id,
+                    timestamp: logClient.timestamp,
+                    type: logClient.type
+                }, {
+                    projection: {
+                        _id: 1,
+                        two_factor: 1
+                    }
+                });
+
+                if (existingLog) {
+                    return;
+                }
+            } else {
+                // real time data
+                logClient.timestamp = (new Date()).getTime();
+                delete logClient.id;
+            }
+
+
+            let dbLog: DbLog = logClient;
+            dbLog.clientId = clientOid;
+
+            let lastLogDataFilter: any = {
+                clientId: dbLog.clientId,
+                type: logClient.type
+            };
+            let logFreq = 60 * 1000;
+
+            if (logClient.type === 'camera') {
+                dbLog.obj = SpabDataStruct.CameraData.decode(dbLog.data!);
+                dbLog.obj.buf = Buffer.from(dbLog.obj.buf);
+                lastLogDataFilter["obj.name"] = dbLog.obj.name;
+                logFreq = 60 * 1000;
+            } else if (logClient.type === 'sensor') {
+                dbLog.obj = SpabDataStruct.SensorData.decode(dbLog.data!);
+                logFreq = 30 * 1000;
+            }
+
+            delete dbLog.data;
+
+            // forcefully remove deleted properties
+            dbLog = {...dbLog};
+
+            let lastLogTimestamp = 0;
+            if (!logClient?.id) {
+                // find last log's timestamp
+                lastLogTimestamp = (await this._db!.collection('log').find(
+                    lastLogDataFilter, 
+                    {
+                        projection: {
+                            _id: 0,
+                            timestamp: 1
+                        }
+                    }
+                )
+                .sort({'timestamp': -1})
+                .limit(1)
+                .toArray())[0]?.timestamp ?? 0;
+            }
+
+            if (dbLog.timestamp! - lastLogTimestamp > logFreq) {
+                await this._db!.collection('log').insertOne(dbLog);
+            }
+
+            return this.addLog(logClient);
+
+        } catch (e) { }
+
+        return undefined;
+    }
+
+    public getLogGui(
+        clientId: string,
+        spabLog: SpabLog
+    ): Buffer {
+        let logGui: SpabDataStruct.ILogGui = {
+            clientId: clientId,
+            timestamp: spabLog.timestamp,
+            type: spabLog.type,
+            data: Buffer.alloc(0)
+        }
+
+        if (spabLog.type === 'camera') {
+            logGui.data = SpabDataStruct.CameraData.encode(spabLog.obj).finish();
+        } else if (spabLog.type === 'sensor') {
+            logGui.data = SpabDataStruct.SensorData.encode(spabLog.obj).finish();
+        }
+
+        return Buffer.from(SpabDataStruct.LogGui.encode(logGui).finish());
+    }
+
     public addLog(
-        log: SpabDataStruct.ILog & {obj?: any}
+        log: DbLog
     ): SpabLog | undefined {
 
         if (!log.clientId) {
@@ -237,6 +374,7 @@ class ClientStore {
 }
 
 export {
+    DbLog,
     SpabLog,
     SpabClient,
     ClientStore

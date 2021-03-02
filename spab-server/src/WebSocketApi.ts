@@ -10,7 +10,7 @@ import * as mongodb from 'mongodb'
 import { authenticator, totp } from 'otplib';
 import { SessionController } from './SessionController';
 import { LoginController, LoginStatus } from './LoginController';
-import { ClientStore, SpabLog } from './ClientStore';
+import { ClientStore, DbLog, SpabLog } from './ClientStore';
 
 interface GuiStatus {
     guiStatus?: {
@@ -139,22 +139,22 @@ export class WebSocketApi {
 
         if (this._clientStore.addClientSocketId(clientId, socket.id)) {
             // notify online
-            this._broadcastToGui('online', clientId);
+            this._broadcastToGui('online', clientId, true);
 
             let count = await this._getClientSubscriberCount(clientId);
             if (count > 0) {
-                this._sendMsgAck(socket, 'polling', [true]);
+                this._sendMsgAck(socket, 'polling', [true], true);
             }
         }
 
         socket.on('disconnect', () => {
             if (this._clientStore.removeClientSocketId(clientId, socket.id)) {
                 // notify offline
-                this._broadcastToGui('offline', clientId);
+                this._broadcastToGui('offline', clientId, true);
             }
         });
 
-        socket.on('log', async (ackResponse, logEncoded) => {
+        socket.on('log', async (logEncoded, ackResponse) => {
     
             if (ackResponse instanceof Function) {
                 ackResponse(true);
@@ -166,104 +166,19 @@ export class WebSocketApi {
                 return;
             }
 
-            let log: SpabDataStruct.ILog | undefined;
+            let logClient: SpabDataStruct.ILogClient | undefined;
 
-            try {
-                log = SpabDataStruct.Log.decode(new Uint8Array(logEncoded));
-            } catch (e) {}
-
-            if (!log) {
-                return;
-            }
-
-            if (log.id) {
-                // cached data
-
-                // invalid timestamp
-                if (log.timestamp! > (new Date()).getTime()) {
-                    return;
-                }
-
-                // check if the cached log is in the database
-                let existingLog = await this._db!.collection('log').findOne({
-                    id: log.id,
-                    timestamp: log.timestamp,
-                    type: log.type
-                }, {
-                    projection: {
-                        _id: 1,
-                        two_factor: 1
-                    }
-                });
-
-                if (existingLog) {
-                    return;
-                }
-            } else {
-                // real time data
-                log.timestamp = (new Date()).getTime();
-                delete log.id;
-            }
-
-
-            try {
-                let logObj: SpabDataStruct.ILog & {clientId?: mongodb.ObjectId, obj?: any} = log;
-                logObj.clientId = new mongodb.ObjectId(clientId);
-
-                let lastLogDataFilter: any = {
-                    clientId: logObj.clientId,
-                    type: log.type
-                };
-                let logFreq = 60 * 1000;
-
-                if (log.type === 'camera') {
-                    logObj.obj = SpabDataStruct.CameraData.decode(logObj.data!);
-                    logObj.obj.buf = Buffer.from(logObj.obj.buf);
-                    lastLogDataFilter["obj.name"] = logObj.obj.name;
-                    logFreq = 60 * 1000;
-                } else if (log.type === 'sensor') {
-                    logObj.obj = SpabDataStruct.SensorData.decode(logObj.data!);
-                    logFreq = 30 * 1000;
-                }
-
-                delete logObj.data;
-
-                // forcefully remove deleted properties
-                logObj = {...logObj};
-
-                let lastLogTimestamp = 0;
-                if (!log?.id) {
-                    // find last log's timestamp
-                    lastLogTimestamp = (await this._db!.collection('log').find(
-                        lastLogDataFilter, 
-                        {
-                            projection: {
-                                _id: 0,
-                                timestamp: 1
-                            }
-                        }
-                    )
-                    .sort({'timestamp': -1})
-                    .limit(1)
-                    .toArray())[0]?.timestamp ?? 0;
-                }
-
-                if (logObj.timestamp! - lastLogTimestamp > logFreq) {
-                    await this._db!.collection('log').insertOne(logObj);
-                }
-
-
-                let spabLog = this._clientStore.addLog(log);
-                if (!spabLog) {
-                    return;
-                }
-
-                await this._sendToGuiSubscriber(clientId, 'log', {
+            if (logClient) {
+                let spabLog = await this._clientStore.addLogEncoded(
                     clientId,
-                    ...spabLog
-                });
-            } catch (e) {
-                console.log(e);
+                    logClient
+                );
+
+                if (spabLog) {
+                    await this._sendToGuiSubscriber(clientId, 'log', [
+                        this._clientStore.getLogGui(clientId, spabLog)
+                    ], false);
+                }
             }
         });
     }
@@ -273,7 +188,7 @@ export class WebSocketApi {
             subscribedClientIds: new Set<string>()
         }
 
-        socket.on('get', (ackResponse, cmd: string) => {
+        socket.on('get', (cmd: string, ackResponse) => {
             if (!(ackResponse instanceof Function)) {
                 return;
             }
@@ -287,7 +202,7 @@ export class WebSocketApi {
             await this._sendLatestLog(clientId, socket);
         });
 
-        socket.on('subscribe', async (ackResponse, clientId: string) => {
+        socket.on('subscribe', async (clientId: string, ackResponse) => {
             if (!(ackResponse instanceof Function)) {
                 return;
             }
@@ -301,7 +216,7 @@ export class WebSocketApi {
             }
         });
 
-        socket.on('unsubscribe', async (ackResponse, clientId: string) => {
+        socket.on('unsubscribe', async (clientId: string, ackResponse) => {
             if (!(ackResponse instanceof Function)) {
                 return;
             }
@@ -314,7 +229,7 @@ export class WebSocketApi {
             }
         });
 
-        socket.on('unsubscribe', async (ackResponse, clientId: string) => {
+        socket.on('unsubscribe', async (clientId: string, ackResponse) => {
             if (!(ackResponse instanceof Function)) {
                 return;
             }
@@ -354,7 +269,6 @@ export class WebSocketApi {
         }
     }
 
-
     private async _sendLatestLog(
         clientId: string,
         socket: Socket
@@ -366,10 +280,9 @@ export class WebSocketApi {
         }
 
         for (let spabLog of client.latestLogs) {
-            this._sendMsgAck(socket, 'log', [{
-                clientId,
-                ...spabLog
-            }]);
+            this._sendMsgAck(socket, 'log', [
+                this._clientStore.getLogGui(clientId, spabLog)
+            ], true);
         }
     }
 
@@ -405,14 +318,15 @@ export class WebSocketApi {
             (count === 1 && isPolling === true) ||
             (count === 0 && isPolling === false)
         ) {
-            this._sendToClient(clientId, 'polling', isPolling);
+            this._sendToClient(clientId, 'polling', isPolling, true);
         }
     }
 
     private _sendToClient (
         clientId: string,
         evt: string, 
-        val: any
+        val: any,
+        ack: boolean
     ) {
         let client = this._clientStore.getClient(clientId);
         if (client) {
@@ -421,7 +335,7 @@ export class WebSocketApi {
                 let socket = this._clientIo.sockets.sockets.get(socketId);
 
                 if (socket) {
-                    this._sendMsgAck(socket, evt, val);
+                    this._sendMsgAck(socket, evt, val, ack);
                 }
             }
         }
@@ -430,15 +344,15 @@ export class WebSocketApi {
     private async _sendToGuiSubscriber(
         clientId: string,
         evt: string, 
-        val: any
+        val: any,
+        ack: boolean
     ) {
-        console.log(val);
         for (let [socketId, socket] of await this._guiIo.sockets.sockets) {
             try {
                 let guiSocket = socket as Socket & LoginStatus & GuiStatus;
                 if (guiSocket.loginStatus?.loggedIn) {
                     if (guiSocket.guiStatus!.subscribedClientIds.has(clientId)) {
-                        this._sendMsgAck(socket, evt, val);
+                        this._sendMsgAck(socket, evt, val, ack);
                     }
                 }
             } catch (e) {}
@@ -447,12 +361,13 @@ export class WebSocketApi {
 
     private async _broadcastToGui(
         evt: string, 
-        val: any
+        val: any,
+        ack: boolean
     ): Promise<any>  {
         for (let [socketId, socket] of await this._guiIo.sockets.sockets) {
             let guiSocket = socket as Socket & LoginStatus;
             if (guiSocket.loginStatus?.loggedIn) {
-                this._sendMsgAck(guiSocket, evt, val);
+                this._sendMsgAck(guiSocket, evt, val, ack);
             }
         }
     }
@@ -461,11 +376,16 @@ export class WebSocketApi {
         socket: Socket, 
         evt: string, 
         values: any[],
+        ack: boolean
     ): Promise<any> {
-        for (let i = 0; i < 3; i++) {
-            try {
-                return await this._sendMsgAckOnce(socket, evt, values, (i + 1) * 10000);
-            } catch (e) { };
+        if (ack) {
+            for (let i = 0; i < 3; i++) {
+                try {
+                    return await this._sendMsgAckOnce(socket, evt, values, (i + 1) * 10000);
+                } catch (e) { };
+            }
+        } else {
+            socket.emit(evt, ...values);
         }
 
         return;
@@ -482,9 +402,9 @@ export class WebSocketApi {
                 reject()
             }, timeout);
 
-            socket.emit(evt, (res: any) => {
+            socket.emit(evt, ...values, (res: any) => {
                 resolve(res);
-            }, ...values);
+            });
         })
     }
 

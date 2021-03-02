@@ -4,6 +4,8 @@ import { interval } from 'rxjs';
 
 import { io, Socket } from "socket.io-client";
 
+import { SpabDataStruct } from "./../../../../spab-data-struct/SpabDataStruct";
+
 interface SpabClientSummary {
   clientId: string,
   name: string,
@@ -117,14 +119,39 @@ export class ApiService {
       }
     });
 
-    this._socket.on('log', (log: SpabLog & { clientId?: string }, ackResponse: Function) => {
+    this._socket.on('log', (logGuiEncoded: Uint8Array, ackResponse: Function) => {
       if (!ackResponse) {
         return;
       }
 
       ackResponse(true);
 
-      if (!log.clientId) {
+      try {
+        let logGui = SpabDataStruct.LogGui.decode(new Uint8Array(logGuiEncoded));
+
+        let spabLog: SpabLog | undefined = {
+          timestamp: logGui.timestamp,
+          type: logGui.type as 'camera' | 'sensor',
+          obj: {}
+        };
+
+        if (logGui.type === 'camera') {
+          spabLog.obj = SpabDataStruct.CameraData.decode(logGui.data);
+          spabLog.obj.buf = new Uint8Array(spabLog.obj.buf);
+        } else if (logGui.type === 'sensor') {
+          spabLog.obj = SpabDataStruct.SensorData.decode(logGui.data);
+        }
+
+        spabLog = this._addLog(logGui.clientId, spabLog);
+
+        console.log(spabLog);
+
+        if (spabLog) {
+          this._notifyLogListeners(logGui.clientId, spabLog);
+        }
+      } catch (err) {}
+
+      /*if (!log.clientId) {
         return;
       }
 
@@ -135,7 +162,7 @@ export class ApiService {
         if (spabLog) {
           this._notifyLogListeners(clientId, spabLog);
         }
-      }
+      }*/
     });
 
     for (let subscribedClientId of this._subscribedClientIds) {
@@ -228,9 +255,9 @@ export class ApiService {
         reject()
       }, timeout);
 
-      this._socket.emit(evt, (res: any) => {
+      this._socket.emit(evt, ...values, (res: any) => {
         resolve(res);
-      }, ...values);
+      });
     })
   }
 
@@ -247,7 +274,7 @@ export class ApiService {
 
   public async unsubscribeAll() {
     this._subscribedClientIds = new Set<string>();
-    await this._sendMsgAck('unsubscribeAll', [undefined]);
+    await this._sendMsgAck('unsubscribeAll', []);
   }
 
   private _notifyLogListeners(clientId: string, log: SpabLog) {
