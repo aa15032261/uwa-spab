@@ -75,53 +75,35 @@ export class ApiService {
         this._socket.connect();
       }, 15000);
     });
-  }
 
-  private async _connectHandler() {
-    let newClients = await this._sendMsgAck('get', ['clients'], true);
 
-    if (!newClients) {
-      return;
-    }
-
-    this._clients = newClients;
-
-    // initialise client object &
-    // remove invalid client ids from subscribed ids
-    let newSubscribedClientIds = new Set<string>();
-
-    for (let client of this._clients) {
-      client.latestLogs = [];
-
-      if (this._subscribedClientIds.has(client.clientId)) {
-        newSubscribedClientIds.add(client.clientId);
-      }
-    }
-
-    this._subscribedClientIds = newSubscribedClientIds;
-
+    
     this._socket.on('online', (clientId: string, ackResponse: Function) => {
-      if (ackResponse) {
-        ackResponse(true);
-        this._setClientStatus(clientId, true);
-        this._notifyClientStatusListeners(clientId, true);
-      }
-    });
-
-    this._socket.on('offline', (clientId: string, ackResponse: Function) => {
-      if (ackResponse) {
-        ackResponse(true);
-        this._setClientStatus(clientId, false);
-        this._notifyClientStatusListeners(clientId, false);
-      }
-    });
-
-    this._socket.on('log', (logGuiEncoded: Uint8Array, ackResponse: Function) => {
-      if (!ackResponse) {
+      if (!(ackResponse instanceof Function)) {
         return;
       }
 
       ackResponse(true);
+
+      this._setClientStatus(clientId, true);
+      this._notifyClientStatusListeners(clientId, true);
+    });
+
+    this._socket.on('offline', (clientId: string, ackResponse: Function) => {
+      if (!(ackResponse instanceof Function)) {
+        return;
+      }
+
+      ackResponse(true);
+
+      this._setClientStatus(clientId, false);
+      this._notifyClientStatusListeners(clientId, false);
+    });
+
+    this._socket.on('log', (logGuiEncoded: Uint8Array, ackResponse: Function) => {
+      if (ackResponse instanceof Function) {
+        ackResponse(true);
+      }
 
       try {
         let logGui = SpabDataStruct.LogGui.decode(new Uint8Array(logGuiEncoded));
@@ -148,6 +130,30 @@ export class ApiService {
         }
       } catch (err) {}
     });
+  }
+
+  private async _connectHandler() {
+    let newClients = await this._sendMsgAck('get', ['clients'], true);
+
+    if (!newClients) {
+      return;
+    }
+
+    this._clients = newClients;
+
+    // initialise client object &
+    // remove invalid client ids from subscribed ids
+    let newSubscribedClientIds = new Set<string>();
+
+    for (let client of this._clients) {
+      client.latestLogs = [];
+
+      if (this._subscribedClientIds.has(client.clientId)) {
+        newSubscribedClientIds.add(client.clientId);
+      }
+    }
+
+    this._subscribedClientIds = newSubscribedClientIds;
 
     for (let subscribedClientId of this._subscribedClientIds) {
       this._sendMsgAck('subscribe', [subscribedClientId], true);

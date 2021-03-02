@@ -154,31 +154,25 @@ export class WebSocketApi {
             }
         });
 
-        socket.on('log', async (logEncoded, ackResponse) => {
+        socket.on('log', async (logClientEncoded, ackResponse) => {
     
             if (ackResponse instanceof Function) {
                 ackResponse(true);
-            } else {
+            }
+
+            if (!logClientEncoded) {
                 return;
             }
 
-            if (!logEncoded) {
-                return;
-            }
+            let spabLog = await this._clientStore.addLogEncoded(
+                clientId,
+                logClientEncoded
+            );
 
-            let logClient: SpabDataStruct.ILogClient | undefined;
-
-            if (logClient) {
-                let spabLog = await this._clientStore.addLogEncoded(
-                    clientId,
-                    logClient
-                );
-
-                if (spabLog) {
-                    await this._sendToGuiSubscriber(clientId, 'log', [
-                        this._clientStore.getLogGui(clientId, spabLog)
-                    ], false);
-                }
+            if (spabLog) {
+                await this._sendToGuiSubscriber(clientId, 'log', [
+                    this._clientStore.getLogGui(clientId, spabLog)
+                ], false);
             }
         });
     }
@@ -318,14 +312,14 @@ export class WebSocketApi {
             (count === 1 && isPolling === true) ||
             (count === 0 && isPolling === false)
         ) {
-            this._sendToClient(clientId, 'polling', isPolling, true);
+            this._sendToClient(clientId, 'polling', [isPolling], true);
         }
     }
 
     private _sendToClient (
         clientId: string,
         evt: string, 
-        val: any,
+        values: any[],
         ack: boolean
     ) {
         let client = this._clientStore.getClient(clientId);
@@ -335,7 +329,7 @@ export class WebSocketApi {
                 let socket = this._clientIo.sockets.sockets.get(socketId);
 
                 if (socket) {
-                    this._sendMsgAck(socket, evt, val, ack);
+                    this._sendMsgAck(socket, evt, values, ack);
                 }
             }
         }
