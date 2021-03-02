@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnDestroy, OnInit, QueryList, Renderer2, ViewChild, ViewChildren } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, QueryList, Renderer2, ViewChild, ViewChildren } from '@angular/core';
 
 import olView from 'ol/View';
 import olMap from 'ol/Map';
@@ -46,11 +46,8 @@ export class MainComponent implements OnInit, OnDestroy  {
   @ViewChild('clientSelect') clientSelect!: ElementRef;
   @ViewChildren('clientCameras') clientCameras!: QueryList<ElementRef>;
 
-  @ViewChild('testImg') testImg!: ElementRef<HTMLImageElement>;
-  @ViewChild('testImg2') testImg2!: ElementRef<HTMLImageElement>;
 
   private _mainMap: olMap;
-
 
   clientSelectItems: {
     selected: boolean,
@@ -93,7 +90,8 @@ export class MainComponent implements OnInit, OnDestroy  {
   constructor(
     private apiService: ApiService,
     private utilsService: UtilsService,
-    private renderer: Renderer2
+    private renderer: Renderer2,
+    private cdr: ChangeDetectorRef
   ) {
     let initPosSet = false;
     let currentPos: Coordinate | undefined = [0, 0];
@@ -175,11 +173,12 @@ export class MainComponent implements OnInit, OnDestroy  {
   }
 
   ngOnInit(): void {
-
+    this.updateClientSelectItems();
   }
 
   ngAfterViewInit() {
     this._mainMap.setTarget(this.mainMapElem.nativeElement);
+
     this.utilsService.addResizeListener(
       this.mainMapElem.nativeElement,
       () => {
@@ -198,6 +197,8 @@ export class MainComponent implements OnInit, OnDestroy  {
     this.apiService.addClientStatusListener('main', () => {
       this.updateClientSelectItems();
     });
+
+    this.cdr.detectChanges();
   }
 
   ngOnDestroy() {
