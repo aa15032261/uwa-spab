@@ -22,7 +22,7 @@ interface SpabLog {
 @Injectable({
   providedIn: 'root'
 })
-export class ApiService {
+class ApiService {
 
   private _socket: Socket;
   private _clients: SpabClientSummary[] = [];
@@ -77,7 +77,7 @@ export class ApiService {
     });
 
 
-    
+
     this._socket.on('online', (clientId: string, ackResponse: Function) => {
       if (!(ackResponse instanceof Function)) {
         return;
@@ -122,8 +122,6 @@ export class ApiService {
         }
 
         spabLog = this._addLog(logGui.clientId, spabLog);
-
-        console.log(spabLog);
 
         if (spabLog) {
           this._notifyLogListeners(logGui.clientId, spabLog);
@@ -321,6 +319,15 @@ export class ApiService {
     this._statustListeners.delete(id);
   }
 
+  public getClient(clientId: string): SpabClientSummary | undefined {
+    for (let client of this._clients) {
+      if (client.clientId === clientId) {
+        return client;
+      }
+    }
+    return;
+  }
+
   get clients(): Readonly<SpabClientSummary>[] {
     return this._clients;
   }
@@ -328,4 +335,10 @@ export class ApiService {
   get subscribedClientIds(): Readonly<Set<string>> {
     return this._subscribedClientIds;
   }
+}
+
+export {
+  SpabLog,
+  SpabClientSummary,
+  ApiService
 }

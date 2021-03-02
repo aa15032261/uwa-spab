@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnDestroy, OnInit, Renderer2, ViewChild } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, QueryList, Renderer2, ViewChild, ViewChildren } from '@angular/core';
 
 import olView from 'ol/View';
 import olMap from 'ol/Map';
@@ -30,7 +30,7 @@ import {
   FullScreen as olControlFullScreen,
   defaults as olControlDefaultControls
 } from 'ol/control';
-import { ApiService } from 'src/app/service/api.service';
+import { ApiService, SpabLog } from 'src/app/service/api.service';
 import { UtilsService } from 'src/app/service/utils.service';
 
 
@@ -44,8 +44,51 @@ export class MainComponent implements OnInit, OnDestroy  {
 
   @ViewChild('mainMap') mainMapElem!: ElementRef;
   @ViewChild('clientSelect') clientSelect!: ElementRef;
+  @ViewChildren('clientCameras') clientCameras!: QueryList<ElementRef>;
 
-  private mainMap: olMap;
+  @ViewChild('testImg') testImg!: ElementRef<HTMLImageElement>;
+  @ViewChild('testImg2') testImg2!: ElementRef<HTMLImageElement>;
+
+  private _mainMap: olMap;
+
+
+  clientSelectItems: {
+    selected: boolean,
+    text: string,
+    clientId: string
+  }[] = [];
+
+  cameraNames = new Set<string>();
+
+  private _clientSelectValue: string = '';
+
+  get clientSelectValue() {
+    return this._clientSelectValue;
+  }
+
+  set clientSelectValue(clientId: string) {
+    this._clientSelectValue = clientId;
+
+    setTimeout(async () => {
+      this.removeCamResizeListeners();
+      this.cameraNames = new Set<string>();
+
+      await this.apiService.unsubscribeAll();
+
+      if (clientId !== '') {
+        await this.apiService.subscribe(clientId);
+
+        let client = this.apiService.getClient(clientId);
+
+        if (client) {
+          for (let spabLog of client.latestLogs) {
+            this.renderLog(clientId, spabLog);
+          }
+        }
+      }
+    }, 0);
+  }
+
 
   constructor(
     private apiService: ApiService,
@@ -118,7 +161,7 @@ export class MainComponent implements OnInit, OnDestroy  {
     // '© <a href="http://www.openseamap.org/">OpenSeaMap</a> contributors.',
     // olSourceOSMAttribution
 
-    this.mainMap = new olMap({
+    this._mainMap = new olMap({
       controls: [],
       layers: [
         new olLayerTile({
@@ -136,48 +179,52 @@ export class MainComponent implements OnInit, OnDestroy  {
   }
 
   ngAfterViewInit() {
-    this.mainMap.setTarget(this.mainMapElem.nativeElement);
+    this._mainMap.setTarget(this.mainMapElem.nativeElement);
     this.utilsService.addResizeListener(
       this.mainMapElem.nativeElement,
       () => {
-        this.mainMap.updateSize();
+        this._mainMap.updateSize();
       }
     );
 
     this.apiService.addLogListener('main', (clientId, spabLog) => {
-      //console.log(spabLog.obj.buf);
+      this.renderLog(clientId, spabLog);
+    });
+
+    this.apiService.addStatusListener('main', () => {
+      this.updateClientSelectItems();
+    });
+
+    this.apiService.addClientStatusListener('main', () => {
+      this.updateClientSelectItems();
     });
   }
 
   ngOnDestroy() {
+    this.removeCamResizeListeners();
     this.utilsService.removeResizeListener(
       this.mainMapElem.nativeElement
     );
-
     this.apiService.removeLogListener('main');
   }
 
+  toggleCamFullscreen(evt: MouseEvent) {
+    let camContainer = (evt.target as HTMLElement)?.parentElement?.parentElement;
 
+    if (!camContainer) {
+      return;
+    }
 
-  private _clientSelectValue: string = '';
-
-  get clientSelectValue() {
-    return this._clientSelectValue;
+    if (camContainer.classList.contains('camera-fs')) {
+      camContainer.classList.add('border');
+      camContainer.classList.remove('camera-fs');
+    } else {
+      camContainer.classList.remove('border');
+      camContainer.classList.add('camera-fs');
+    }
   }
 
-  set clientSelectValue(clientId: string) {
-    this._clientSelectValue = clientId;
-
-    setTimeout(async () => {
-      await this.apiService.unsubscribeAll();
-
-      if (clientId !== '') {
-        await this.apiService.subscribe(clientId);
-      }
-    }, 0);
-  }
-
-  get clientSelectItems() {
+  updateClientSelectItems() {
     let items: {
       selected: boolean,
       text: string,
@@ -187,7 +234,6 @@ export class MainComponent implements OnInit, OnDestroy  {
       text: 'Disconnected',
       clientId: ''
     }];
-
 
     for (let client of this.apiService.clients) {
       let selected = this.apiService.subscribedClientIds.has(client.clientId);
@@ -203,6 +249,57 @@ export class MainComponent implements OnInit, OnDestroy  {
       }
     }
 
-    return items;
+    this.clientSelectItems = items;
+  }
+
+  removeCamResizeListeners() {
+    // remove resize listener
+    if (this.clientCameras) {
+      this.clientCameras.forEach((item) => {
+        for (let child of item.nativeElement.children) {
+          if (child.getAttribute('cam')) {
+            this.utilsService.removeResizeListener(child);
+          }
+        }
+      });
+    }
+  }
+
+  renderLog(clientId: string, spabLog: SpabLog) {
+    if (spabLog.type === 'camera') {
+      let camName = spabLog.obj.name;
+      this.cameraNames.add(camName);
+
+      setTimeout(() => {
+        let camContainer: HTMLElement | undefined;
+        let camCanvas: HTMLCanvasElement | undefined;
+
+        this.clientCameras.find((item) => {
+          for (let child of item.nativeElement.children) {
+            if (child.getAttribute('cam') === camName) {
+              camContainer = item.nativeElement;
+              camCanvas = child;
+              return true;
+            }
+          }
+
+          return false;
+        });
+
+        if (!camCanvas) {
+          return;
+        }
+
+        let img = new Image();
+        img.onload = () => {
+          this.utilsService.imgToCanvas(camCanvas!, img);
+
+          this.utilsService.addResizeListener(camContainer!, () => {
+            this.utilsService.imgToCanvas(camCanvas!, img);
+          });
+        }
+        img.src = URL.createObjectURL(new Blob([spabLog.obj.buf], {type: 'image/jpg'}));
+      }, 1);
+    }
   }
 }

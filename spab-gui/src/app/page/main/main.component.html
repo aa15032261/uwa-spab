@@ -6,12 +6,23 @@
                     <span class="input-group-text" id="inputGroup-sizing-sm">Client</span>
                 </div>
 
-                <select #clientSelect class="custom-select" [(ngModel)]="clientSelectValue">
+                <select #clientSelect class="user-select-none custom-select" [(ngModel)]="clientSelectValue">
                     <option *ngFor="let client of clientSelectItems" [ngValue]="client.clientId" [attr.selected]="client.selected ? true : null">
                         {{client.text}}
                     </option>
                 </select>
             </div>
+
+            <div #clientCameras class="camera-container border" *ngFor="let name of cameraNames">
+                <div class="camera-name-bar">
+                    <span class="d-inline-block text-truncate camera-name">{{name}}</span>
+                    <span class="material-icons user-select-none camera-fs-btn" (click)="toggleCamFullscreen($event)">&#xe5d0;</span>
+                </div>
+                <canvas class="camera-canvas" [attr.cam]="name"></canvas>
+            </div>
+
+            <img #testImg>
+            <img #testImg2>
         </div>
     </div>
     <div content>

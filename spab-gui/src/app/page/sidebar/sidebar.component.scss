@@ -15,7 +15,7 @@
     height: 36px;
     line-height: 36px;
     text-align: center;
-    z-index: 3;
+    z-index: 2;
     transition: 0.33s;
     opacity: 0.85;
 }
@@ -41,7 +41,7 @@
     border-left: #ddd solid 1px;
     background-color: #fff;
     box-shadow: 4px 0 4px 4px rgba(0,0,0,0.25);
-    z-index: 2;
+    z-index: 3;
     transition: 0.33s;
 }
 .sidebar-layout.sidebar-close .sidebar {
