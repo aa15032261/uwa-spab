@@ -4,9 +4,9 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
-import { SpabDataStruct } from "./../../spab-data-struct/SpabDataStruct";
+import { SpabDataStruct } from "../../spab-data-struct/SpabDataStruct";
 
-export class LogDb {
+export class LogClientDb {
     private _db: Database;
     private _ready = false;
 
@@ -86,7 +86,7 @@ export class LogDb {
         );
     }
 
-    public async getFirst(): Promise<SpabDataStruct.ILog | null | undefined> {
+    public async getFirst(): Promise<SpabDataStruct.ILogClient | null | undefined> {
         if (!this._ready) {
             return;
         }

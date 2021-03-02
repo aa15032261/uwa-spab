@@ -3,19 +3,19 @@ import './Config';
 
 import { CamControl } from "./CamControl";
 import { io, Socket } from "socket.io-client";
-import { LogDb } from './LogDb';
+import { LogClientDb } from './LogClientDb';
 import { SpabDataStruct } from "./../../spab-data-struct/SpabDataStruct";
 
 import { authenticator } from 'otplib';
 
 interface Camera {
-    name: string, 
+    name: string,
     camControl: CamControl
 }
 
 export class MainController {
 
-    private _logDb: LogDb;
+    private _logClientDb: LogClientDb;
 
     private _socket: Socket;
     private _isPolling = false;
@@ -27,8 +27,8 @@ export class MainController {
 
     private _sensorTimer: NodeJS.Timeout | null = null;
 
-    constructor () {
-        this._logDb = new LogDb(LOG_DB_PATH, CLIENT_API_TOKEN);
+    constructor() {
+        this._logClientDb = new LogClientDb(LOG_DB_PATH, CLIENT_API_TOKEN);
 
         // init cameras
         for (let camCfg of CAM_CFGS) {
@@ -36,15 +36,15 @@ export class MainController {
                 name: camCfg.name,
                 camControl: new CamControl(camCfg.cfg),
             }
-    
+
             camera.camControl.imgCallback = (buf: Buffer) => {
                 this._handleNewCameraData({
-                    name: camera.name, 
+                    name: camera.name,
                     buf: buf
                 });
             }
             camera.camControl.imgInterval = -1;
-    
+
             this._cameras.push(camera);
         }
 
@@ -96,12 +96,12 @@ export class MainController {
         this._socket.sendBuffer = [];
 
         this._sync();
-        
+
         this._restartEventLoop();
 
-        this._socket.on('polling', (ackResponse: any, isPolling: boolean, ) => {
+        this._socket.on('polling', (isPolling: boolean, ackResponse: any) => {
             console.log('polling');
-            
+
             if (!(ackResponse instanceof Function)) {
                 return;
             }
@@ -135,7 +135,7 @@ export class MainController {
                     camera.camControl.imgInterval = -1;
                 }
             }
-    
+
             this._restartEventLoop();
         }
     }
@@ -161,13 +161,13 @@ export class MainController {
 
     private _handleNewData(type: 'camera' | 'sensor', data: Buffer) {
         if (this._checkOnline()) {
-            let log: SpabDataStruct.ILog = {
+            let log: SpabDataStruct.ILogClient = {
                 type: type,
                 data: data
             };
-            this._socket.emit('log', SpabDataStruct.Log.encode(log).finish());
+            this._socket.emit('log', SpabDataStruct.LogClient.encode(log).finish());
         } else {
-            this._logDb.add(type, data);
+            this._logClientDb.add(type, data);
         }
     }
 
@@ -228,20 +228,20 @@ export class MainController {
     private async _syncLoop() {
         try {
             while (1) {
-                let log = await this._logDb.getFirst();
+                let log = await this._logClientDb.getFirst();
 
                 if (log && this._checkOnline()) {
                     if (
                         !(await this._sendMsgAck('log', [
-                            SpabDataStruct.Log.encode(log!).finish()
-                        ]))
+                            SpabDataStruct.LogClient.encode(log!).finish()
+                        ], true))
                     ) {
                         throw 'network error';
                     }
-                    
+
                 } else {
                     this._syncTimer = null;
-                    this._logDb.vacuum();
+                    this._logClientDb.vacuum();
                     break;
                 }
             }
@@ -259,31 +259,36 @@ export class MainController {
     }
 
     private async _sendMsgAck(
-        evt: string, 
+        evt: string,
         values: any[],
-      ): Promise<any> {
-          for (let i = 0; i < 3; i++) {
-              try {
-                  return await this._sendMsgAckOnce(evt, values, (i + 1) * 10000);
-              } catch (e) { };
-          }
+        ack: boolean
+    ): Promise<any> {
+        if (ack) {
+            for (let i = 0; i < 3; i++) {
+                try {
+                    return await this._sendMsgAckOnce(evt, values, (i + 1) * 10000);
+                } catch (e) { };
+            }
+        } else {
+            this._socket.emit(evt, ...values);
+        }
 
-          return;
-      }
-    
-        private _sendMsgAckOnce(
-          evt: string, 
-          values: any[],
-          timeout: number
-      ): Promise<any> {
-          return new Promise<any>((resolve, reject) => {
-              setTimeout(() => {
-                  reject()
-              }, timeout);
-    
-              this._socket.emit(evt, (res: any) => {
-                  resolve(res);
-              }, ...values);
-          })
-      }
+        return;
+    }
+
+    private _sendMsgAckOnce(
+        evt: string,
+        values: any[],
+        timeout: number
+    ): Promise<any> {
+        return new Promise<any>((resolve, reject) => {
+            setTimeout(() => {
+                reject()
+            }, timeout);
+
+            this._socket.emit(evt, ...values, (res: any) => {
+                resolve(res);
+            });
+        })
+    }
 }
