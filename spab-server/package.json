@@ -4,7 +4,7 @@
   "main": "dist/index.js",
   "scripts": {
     "compile": "tsc && node dist/index.js",
-    "dev": "nodemon -e ts -x \"npm run compile || exit 1\" -w package.json -x \"npm install || exit 1\"",
+    "dev": "nodemon -e ts -x \"npm run compile || exit 1\"",
     "auto-pull": "nodemon ./auto_pull.js"
   },
   "dependencies": {
