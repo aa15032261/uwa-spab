@@ -12,7 +12,7 @@ import { RestApi } from './RestApi';
 import { Session } from 'express-session';
 
 function main() {
-    const app = expres();
+    const app = express();
     const httpServer = http.createServer(app);
 
     new MongoDbConnection(
