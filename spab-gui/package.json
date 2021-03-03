@@ -7,7 +7,8 @@
     "build": "ng build",
     "test": "ng test",
     "lint": "ng lint",
-    "e2e": "ng e2e"
+    "e2e": "ng e2e",
+    "dev": "nodemon -e ts -x \"ng build --prod || exit 1\""
   },
   "private": true,
   "dependencies": {
