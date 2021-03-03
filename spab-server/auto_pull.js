@@ -1,15 +1,20 @@
 const childProcess = require('child_process');
 
 
-function runCmd(cmd) {
+function runCmd(cmd, args) {
     try {
-        childProcess.spawnSync(cmd);
+        childProcess.spawnSync(cmd, args);
     } catch (e) {
         console.log(e);
     }
 }
 
+function pull() {
+    runCmd('git', ['fetch']);
+    runCmd('git', ['pull']);
+}
+
 setInterval(()=> {
-    runCmd('git fetch');
-    runCmd('git pull');
+    pull();
 }, 60000);
+pull();
