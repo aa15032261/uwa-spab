@@ -12,7 +12,7 @@ function runCmd(cmd, args) {
 function pull() {
     runCmd('git', ['fetch']);
     runCmd('git', ['pull']);
-    console.log('test');
+    console.log(new Date());
 }
 
 setInterval(()=> {
