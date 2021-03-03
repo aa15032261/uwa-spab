@@ -1,11 +1,10 @@
 <spab-sidebar>
     <div sidebar>
         <div class='p-2'>
-            <div class="input-group input-group-sm mb-3">
+            <div class="input-group mb-3">
                 <div class="input-group-prepend">
-                    <span class="input-group-text" id="inputGroup-sizing-sm">Client</span>
+                    <span class="input-group-text">Client</span>
                 </div>
-
                 <select #clientSelect class="user-select-none custom-select" [(ngModel)]="clientSelectValue">
                     <option *ngFor="let client of clientSelectItems" [ngValue]="client.clientId" [attr.selected]="client.selected ? true : null">
                         {{client.text}}
