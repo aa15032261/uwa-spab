@@ -29,7 +29,7 @@ export class CamControl {
                 //this._imgCallback(this._imgBuf);
                 let mozJpegProcess = childProcess.spawnSync(
                     mozjpeg,
-                    ['-quality', '65'],
+                    ['-quality', '55'],
                     {
                         shell: false,
                         input: this._imgBuf

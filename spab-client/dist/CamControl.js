@@ -23,7 +23,7 @@ class CamControl {
         this._imgTimer = setTimeout(() => tslib_1.__awaiter(this, void 0, void 0, function* () {
             if (this._imgCallback) {
                 //this._imgCallback(this._imgBuf);
-                let mozJpegProcess = childProcess.spawnSync(mozjpeg, ['-quality', '65'], {
+                let mozJpegProcess = childProcess.spawnSync(mozjpeg, ['-quality', '55'], {
                     shell: false,
                     input: this._imgBuf
                 });
