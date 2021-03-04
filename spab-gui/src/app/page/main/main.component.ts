@@ -267,6 +267,10 @@ export class MainComponent implements OnInit, OnDestroy  {
   }
 
   renderLog(clientId: string, spabLog: SpabLog) {
+    if (!(clientId === this._clientSelectValue)) {
+      return;
+    }
+
     if (spabLog.type === 'camera') {
       let camName = spabLog.obj.name;
       this.cameraNames.add(camName);
