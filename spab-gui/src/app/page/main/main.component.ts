@@ -272,7 +272,7 @@ export class MainComponent implements OnInit, OnDestroy  {
     }
 
     if (spabLog.type === 'camera') {
-      let camName = spabLog.obj.name;
+      let camName = spabLog.typeId;
       this.cameraNames.add(camName);
 
       setTimeout(() => {

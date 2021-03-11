@@ -6,11 +6,11 @@ import { Server, Socket } from 'socket.io';
 import * as cookie from 'cookie';
 import { SpabDataStruct } from "./../../spab-data-struct/SpabDataStruct";
 
-import * as mongodb from 'mongodb'
 import { authenticator, totp } from 'otplib';
 import { SessionController } from './SessionController';
 import { LoginController, LoginStatus } from './LoginController';
 import { ClientStore, DbLog, SpabLog } from './ClientStore';
+import { Pool } from 'pg';
 
 interface GuiStatus {
     guiStatus?: {
@@ -20,7 +20,7 @@ interface GuiStatus {
 
 export class WebSocketApi {
 
-    private _db?: mongodb.Db;
+    private _pool?: Pool;
 
     private _clientIo: Server;
     private _guiIo: Server;
@@ -37,16 +37,15 @@ export class WebSocketApi {
         this._clientStore = new ClientStore();
         
         this._clientIo = new Server(httpServer, {
-            path: CLIENT_API_PATH
+            path: CLIENT_WSAPI_PATH
         });
         this._guiIo = new Server(httpServer, {
-            path: GUI_API_PATH
+            path: GUI_WSAPI_PATH
         });
     
         this._clientIo.on('connection', async (socket: Socket) => {
-            console.log('client');
             try {
-                if (!this._db) {
+                if (!this._pool) {
                     throw 'db not ready';
                 }
 
@@ -69,7 +68,7 @@ export class WebSocketApi {
 
         this._guiIo.on('connection', async (socket: Socket & LoginStatus) => {
             try {
-                if (!this._db) {
+                if (!this._pool) {
                     throw 'db not ready';
                 }
 
@@ -92,22 +91,16 @@ export class WebSocketApi {
 
                 this._setupGuiSocket(socket);
             } catch (e) {
-                console.log(e);
                 socket.disconnect(true);
             }
         });
     }
 
-    private async _clientAuth(token: string, twoFactor: string): Promise<string | undefined> {
-        let clientObj = await this._db!.collection('client').findOne({
-            token: token
-        }, {
-            projection: {
-                _id: 1,
-                name: 1,
-                two_factor: 1
-            }
-        });
+    private async _clientAuth(token: string, twoFactorToken: string): Promise<string | undefined> {
+        let clientObj = (await this._pool!.query(
+            `SELECT "_id", "name", "twoFactor" FROM clients WHERE token=$1`,
+            [token]
+        )).rows[0];
 
         if (!clientObj) {
             return;
@@ -115,19 +108,19 @@ export class WebSocketApi {
 
         let authenticated = false;
 
-        if (clientObj.two_factor?.type === 'totp' && clientObj.two_factor?.secret) {
+        if (clientObj.twoFactor?.type === 'totp' && clientObj.twoFactor?.secret) {
             authenticated = authenticator.verify({
-                token: twoFactor, 
-                secret: clientObj.two_factor.secret
+                token: twoFactorToken, 
+                secret: clientObj.twoFactor.secret
             });
         }
 
         if (authenticated) {
-            return clientObj._id.toString();
+            return clientObj._id
         }
 
         await this._clientStore.createClient(
-            clientObj._id.toString(),
+            clientObj._id,
             clientObj.name
         );
         
@@ -135,8 +128,6 @@ export class WebSocketApi {
     }
 
     private async _setupClientSocket(clientId: string, socket: Socket) {
-        console.log('connect');
-
         if (this._clientStore.addClientSocketId(clientId, socket.id)) {
             // notify online
             this._broadcastToGui('online', [clientId], true);
@@ -155,7 +146,7 @@ export class WebSocketApi {
         });
 
         socket.on('log', async (logClientEncoded, ackResponse) => {
-    
+
             if (ackResponse instanceof Function) {
                 ackResponse(true);
             }
@@ -403,9 +394,9 @@ export class WebSocketApi {
     }
 
 
-    public updateDbPool(db: mongodb.Db) {
-        this._db = db;
-        this._clientStore.updateDbPool(db);
+    public updateDbPool(pool: Pool) {
+        this._pool = pool;
+        this._clientStore.updateDbPool(pool);
     }
     
 }

@@ -24,9 +24,10 @@ $root.SpabDataStruct = (function() {
          * Properties of a LogClient.
          * @memberof SpabDataStruct
          * @interface ILogClient
-         * @property {number|null} [id] LogClient id
+         * @property {number|null} [logId] LogClient logId
          * @property {number|null} [timestamp] LogClient timestamp
          * @property {string|null} [type] LogClient type
+         * @property {string|null} [typeId] LogClient typeId
          * @property {Uint8Array|null} [data] LogClient data
          */
 
@@ -46,12 +47,12 @@ $root.SpabDataStruct = (function() {
         }
 
         /**
-         * LogClient id.
-         * @member {number} id
+         * LogClient logId.
+         * @member {number} logId
          * @memberof SpabDataStruct.LogClient
          * @instance
          */
-        LogClient.prototype.id = 0;
+        LogClient.prototype.logId = 0;
 
         /**
          * LogClient timestamp.
@@ -68,6 +69,14 @@ $root.SpabDataStruct = (function() {
          * @instance
          */
         LogClient.prototype.type = "";
+
+        /**
+         * LogClient typeId.
+         * @member {string} typeId
+         * @memberof SpabDataStruct.LogClient
+         * @instance
+         */
+        LogClient.prototype.typeId = "";
 
         /**
          * LogClient data.
@@ -101,12 +110,14 @@ $root.SpabDataStruct = (function() {
         LogClient.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
-            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
-                writer.uint32(/* id 1, wireType 1 =*/9).double(message.id);
+            if (message.logId != null && Object.hasOwnProperty.call(message, "logId"))
+                writer.uint32(/* id 1, wireType 1 =*/9).double(message.logId);
             if (message.timestamp != null && Object.hasOwnProperty.call(message, "timestamp"))
                 writer.uint32(/* id 2, wireType 1 =*/17).double(message.timestamp);
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
-                writer.uint32(/* id 4, wireType 2 =*/34).string(message.type);
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.type);
+            if (message.typeId != null && Object.hasOwnProperty.call(message, "typeId"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.typeId);
             if (message.data != null && Object.hasOwnProperty.call(message, "data"))
                 writer.uint32(/* id 5, wireType 2 =*/42).bytes(message.data);
             return writer;
@@ -144,13 +155,16 @@ $root.SpabDataStruct = (function() {
                 var tag = reader.uint32();
                 switch (tag >>> 3) {
                 case 1:
-                    message.id = reader.double();
+                    message.logId = reader.double();
                     break;
                 case 2:
                     message.timestamp = reader.double();
                     break;
-                case 4:
+                case 3:
                     message.type = reader.string();
+                    break;
+                case 4:
+                    message.typeId = reader.string();
                     break;
                 case 5:
                     message.data = reader.bytes();
@@ -190,15 +204,18 @@ $root.SpabDataStruct = (function() {
         LogClient.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.id != null && message.hasOwnProperty("id"))
-                if (typeof message.id !== "number")
-                    return "id: number expected";
+            if (message.logId != null && message.hasOwnProperty("logId"))
+                if (typeof message.logId !== "number")
+                    return "logId: number expected";
             if (message.timestamp != null && message.hasOwnProperty("timestamp"))
                 if (typeof message.timestamp !== "number")
                     return "timestamp: number expected";
             if (message.type != null && message.hasOwnProperty("type"))
                 if (!$util.isString(message.type))
                     return "type: string expected";
+            if (message.typeId != null && message.hasOwnProperty("typeId"))
+                if (!$util.isString(message.typeId))
+                    return "typeId: string expected";
             if (message.data != null && message.hasOwnProperty("data"))
                 if (!(message.data && typeof message.data.length === "number" || $util.isString(message.data)))
                     return "data: buffer expected";
@@ -217,12 +234,14 @@ $root.SpabDataStruct = (function() {
             if (object instanceof $root.SpabDataStruct.LogClient)
                 return object;
             var message = new $root.SpabDataStruct.LogClient();
-            if (object.id != null)
-                message.id = Number(object.id);
+            if (object.logId != null)
+                message.logId = Number(object.logId);
             if (object.timestamp != null)
                 message.timestamp = Number(object.timestamp);
             if (object.type != null)
                 message.type = String(object.type);
+            if (object.typeId != null)
+                message.typeId = String(object.typeId);
             if (object.data != null)
                 if (typeof object.data === "string")
                     $util.base64.decode(object.data, message.data = $util.newBuffer($util.base64.length(object.data)), 0);
@@ -245,9 +264,10 @@ $root.SpabDataStruct = (function() {
                 options = {};
             var object = {};
             if (options.defaults) {
-                object.id = 0;
+                object.logId = 0;
                 object.timestamp = 0;
                 object.type = "";
+                object.typeId = "";
                 if (options.bytes === String)
                     object.data = "";
                 else {
@@ -256,12 +276,14 @@ $root.SpabDataStruct = (function() {
                         object.data = $util.newBuffer(object.data);
                 }
             }
-            if (message.id != null && message.hasOwnProperty("id"))
-                object.id = options.json && !isFinite(message.id) ? String(message.id) : message.id;
+            if (message.logId != null && message.hasOwnProperty("logId"))
+                object.logId = options.json && !isFinite(message.logId) ? String(message.logId) : message.logId;
             if (message.timestamp != null && message.hasOwnProperty("timestamp"))
                 object.timestamp = options.json && !isFinite(message.timestamp) ? String(message.timestamp) : message.timestamp;
             if (message.type != null && message.hasOwnProperty("type"))
                 object.type = message.type;
+            if (message.typeId != null && message.hasOwnProperty("typeId"))
+                object.typeId = message.typeId;
             if (message.data != null && message.hasOwnProperty("data"))
                 object.data = options.bytes === String ? $util.base64.encode(message.data, 0, message.data.length) : options.bytes === Array ? Array.prototype.slice.call(message.data) : message.data;
             return object;
@@ -290,6 +312,7 @@ $root.SpabDataStruct = (function() {
          * @property {string|null} [clientId] LogGui clientId
          * @property {number|null} [timestamp] LogGui timestamp
          * @property {string|null} [type] LogGui type
+         * @property {string|null} [typeId] LogGui typeId
          * @property {Uint8Array|null} [data] LogGui data
          */
 
@@ -333,6 +356,14 @@ $root.SpabDataStruct = (function() {
         LogGui.prototype.type = "";
 
         /**
+         * LogGui typeId.
+         * @member {string} typeId
+         * @memberof SpabDataStruct.LogGui
+         * @instance
+         */
+        LogGui.prototype.typeId = "";
+
+        /**
          * LogGui data.
          * @member {Uint8Array} data
          * @memberof SpabDataStruct.LogGui
@@ -369,7 +400,9 @@ $root.SpabDataStruct = (function() {
             if (message.timestamp != null && Object.hasOwnProperty.call(message, "timestamp"))
                 writer.uint32(/* id 2, wireType 1 =*/17).double(message.timestamp);
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
-                writer.uint32(/* id 4, wireType 2 =*/34).string(message.type);
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.type);
+            if (message.typeId != null && Object.hasOwnProperty.call(message, "typeId"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.typeId);
             if (message.data != null && Object.hasOwnProperty.call(message, "data"))
                 writer.uint32(/* id 5, wireType 2 =*/42).bytes(message.data);
             return writer;
@@ -412,8 +445,11 @@ $root.SpabDataStruct = (function() {
                 case 2:
                     message.timestamp = reader.double();
                     break;
-                case 4:
+                case 3:
                     message.type = reader.string();
+                    break;
+                case 4:
+                    message.typeId = reader.string();
                     break;
                 case 5:
                     message.data = reader.bytes();
@@ -462,6 +498,9 @@ $root.SpabDataStruct = (function() {
             if (message.type != null && message.hasOwnProperty("type"))
                 if (!$util.isString(message.type))
                     return "type: string expected";
+            if (message.typeId != null && message.hasOwnProperty("typeId"))
+                if (!$util.isString(message.typeId))
+                    return "typeId: string expected";
             if (message.data != null && message.hasOwnProperty("data"))
                 if (!(message.data && typeof message.data.length === "number" || $util.isString(message.data)))
                     return "data: buffer expected";
@@ -486,6 +525,8 @@ $root.SpabDataStruct = (function() {
                 message.timestamp = Number(object.timestamp);
             if (object.type != null)
                 message.type = String(object.type);
+            if (object.typeId != null)
+                message.typeId = String(object.typeId);
             if (object.data != null)
                 if (typeof object.data === "string")
                     $util.base64.decode(object.data, message.data = $util.newBuffer($util.base64.length(object.data)), 0);
@@ -511,6 +552,7 @@ $root.SpabDataStruct = (function() {
                 object.clientId = "";
                 object.timestamp = 0;
                 object.type = "";
+                object.typeId = "";
                 if (options.bytes === String)
                     object.data = "";
                 else {
@@ -525,6 +567,8 @@ $root.SpabDataStruct = (function() {
                 object.timestamp = options.json && !isFinite(message.timestamp) ? String(message.timestamp) : message.timestamp;
             if (message.type != null && message.hasOwnProperty("type"))
                 object.type = message.type;
+            if (message.typeId != null && message.hasOwnProperty("typeId"))
+                object.typeId = message.typeId;
             if (message.data != null && message.hasOwnProperty("data"))
                 object.data = options.bytes === String ? $util.base64.encode(message.data, 0, message.data.length) : options.bytes === Array ? Array.prototype.slice.call(message.data) : message.data;
             return object;
@@ -550,7 +594,6 @@ $root.SpabDataStruct = (function() {
          * Properties of a CameraData.
          * @memberof SpabDataStruct
          * @interface ICameraData
-         * @property {string|null} [name] CameraData name
          * @property {Uint8Array|null} [buf] CameraData buf
          */
 
@@ -568,14 +611,6 @@ $root.SpabDataStruct = (function() {
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
-
-        /**
-         * CameraData name.
-         * @member {string} name
-         * @memberof SpabDataStruct.CameraData
-         * @instance
-         */
-        CameraData.prototype.name = "";
 
         /**
          * CameraData buf.
@@ -609,8 +644,6 @@ $root.SpabDataStruct = (function() {
         CameraData.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
-            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
-                writer.uint32(/* id 1, wireType 2 =*/10).string(message.name);
             if (message.buf != null && Object.hasOwnProperty.call(message, "buf"))
                 writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.buf);
             return writer;
@@ -647,9 +680,6 @@ $root.SpabDataStruct = (function() {
             while (reader.pos < end) {
                 var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.name = reader.string();
-                    break;
                 case 2:
                     message.buf = reader.bytes();
                     break;
@@ -688,9 +718,6 @@ $root.SpabDataStruct = (function() {
         CameraData.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.name != null && message.hasOwnProperty("name"))
-                if (!$util.isString(message.name))
-                    return "name: string expected";
             if (message.buf != null && message.hasOwnProperty("buf"))
                 if (!(message.buf && typeof message.buf.length === "number" || $util.isString(message.buf)))
                     return "buf: buffer expected";
@@ -709,8 +736,6 @@ $root.SpabDataStruct = (function() {
             if (object instanceof $root.SpabDataStruct.CameraData)
                 return object;
             var message = new $root.SpabDataStruct.CameraData();
-            if (object.name != null)
-                message.name = String(object.name);
             if (object.buf != null)
                 if (typeof object.buf === "string")
                     $util.base64.decode(object.buf, message.buf = $util.newBuffer($util.base64.length(object.buf)), 0);
@@ -732,8 +757,7 @@ $root.SpabDataStruct = (function() {
             if (!options)
                 options = {};
             var object = {};
-            if (options.defaults) {
-                object.name = "";
+            if (options.defaults)
                 if (options.bytes === String)
                     object.buf = "";
                 else {
@@ -741,9 +765,6 @@ $root.SpabDataStruct = (function() {
                     if (options.bytes !== Array)
                         object.buf = $util.newBuffer(object.buf);
                 }
-            }
-            if (message.name != null && message.hasOwnProperty("name"))
-                object.name = message.name;
             if (message.buf != null && message.hasOwnProperty("buf"))
                 object.buf = options.bytes === String ? $util.base64.encode(message.buf, 0, message.buf.length) : options.bytes === Array ? Array.prototype.slice.call(message.buf) : message.buf;
             return object;

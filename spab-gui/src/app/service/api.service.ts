@@ -14,6 +14,7 @@ interface SpabClientSummary {
 }
 interface SpabLog {
   type: 'camera' | 'sensor',
+  typeId: string,
   timestamp: number,
   obj: any
 }
@@ -45,9 +46,9 @@ class ApiService {
 
     // init socket io
     this._socket = io(
-      'wss://spab.toms.directory',
+      'wss://therevproject.com',
       {
-        path: '/api/gui_ws/',
+        path: '/spab_2021s1/api/gui_ws/',
         rejectUnauthorized: false,
         autoConnect: true,
         reconnectionDelayMax: 10000,
@@ -111,6 +112,7 @@ class ApiService {
         let spabLog: SpabLog | undefined = {
           timestamp: logGui.timestamp,
           type: logGui.type as 'camera' | 'sensor',
+          typeId: logGui.typeId,
           obj: {}
         };
 
@@ -193,10 +195,7 @@ class ApiService {
     for (let spabLog of selectedClient.latestLogs) {
       if (
         log.type === spabLog.type &&
-        (
-          log.type === 'sensor' ||
-          (log.type === 'camera' && log.obj.name === spabLog.obj.name)
-        )
+        log.typeId === spabLog.typeId
       ) {
         if (log.timestamp && log.timestamp > spabLog.timestamp) {
           spabLog.timestamp = log.timestamp;
@@ -211,6 +210,7 @@ class ApiService {
     if (log.timestamp && (log.type === 'sensor' || log.type === 'camera')) {
       let spabLog: SpabLog = {
         type: log.type,
+        typeId: log.typeId,
         timestamp: log.timestamp!,
         obj: log.obj
       };

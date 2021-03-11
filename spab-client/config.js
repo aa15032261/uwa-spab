@@ -4,12 +4,12 @@ module.exports = function() {
     this.DEV = true;
     this.LOG_DB_PATH = path.resolve(__dirname, './log_db');
 
-    this.SERVER_URL = 'wss://spab.toms.directory';
-    this.CLIENT_API_PATH = '/api/client_ws/';
-    this.CLIENT_API_TOKEN = 'c3854a4bf55287c0ac9183549a31e88977a2f4879b7959cf231de5b6af8f8d8a';
+    this.SERVER_URL = 'wss://therevproject.com';
+    this.CLIENT_API_PATH = '/spab_2021s1/api/client_ws/';
+    this.CLIENT_API_TOKEN = '6fca079c9acf449ee793b7478936e8d524ebfc0ff964a8c2d5ea4b8597535692';
     this.CLIENT_TWO_FACTOR = {
         type: 'totp',
-        secret: 'WZBTLIWDJRSXIS3Q'
+        secret: 'MYCSAYK7KMCH4KIH'
     };
 
     this.CAM_CFGS = [

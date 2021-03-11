@@ -1,15 +1,17 @@
 module.exports = function() {
     this.DEV = true;
     this.PORT = 8765;
-    this.DOMAIN = 'spab.toms.directory'
+    this.DOMAIN = 'therevproject.com';
+    this.BASE_URL = '/spab_2021s1';
 
-    this.MONGO_URL = '127.0.0.1:27017';
-    this.MONGO_USER = 'spab';
-    this.MONGO_PASSWORD = 'spab';
-    this.MONGO_DB_NAME = 'spab';
+    this.DB_HOST = '127.0.0.1';
+    this.DB_PORT = 5432;
+    this.DB_NAME = 'therevpr_spab_2021s1';
+    this.DB_USER = 'therevpr_spab';
+    this.DB_PASSWORD = 'therevpr_spab';
 
-    this.CLIENT_API_PATH = '/api/client_ws/';
-    this.GUI_API_PATH = '/api/gui_ws/';
+    this.CLIENT_WSAPI_PATH = this.BASE_URL + '/api/client_ws/';
+    this.GUI_WSAPI_PATH = this.BASE_URL + '/api/gui_ws/';
 
 
     this.USER_PASSWORD_SALT = 'oq723uh4k234#Q#23&(*Ynh/';

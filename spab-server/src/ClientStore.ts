@@ -1,14 +1,15 @@
-import * as mongodb from 'mongodb';
+import { Pool } from "pg";
 import { SpabDataStruct } from "./../../spab-data-struct/SpabDataStruct";
 
 
 interface DbLog extends SpabDataStruct.ILogClient {
-    clientId?: mongodb.ObjectId, 
+    clientId?: string, 
     obj?: any
 }
 
 interface SpabLog  {
     type: 'camera' | 'sensor',
+    typeId: string,
     timestamp: number,
     obj: any
 }
@@ -28,13 +29,13 @@ interface SpabClientSummary {
 
 class ClientStore {
 
-    private _db?: mongodb.Db;
+    private _pool?: Pool;
     private _clientStore = new Map<string, SpabClient>();
 
     constructor() { }
 
-    public updateDbPool(db: mongodb.Db) {
-        this._db = db;
+    public updateDbPool(pool: Pool) {
+        this._pool = pool;
         this._updateClientList();
     }
 
@@ -43,18 +44,13 @@ class ClientStore {
             let newClientIdSet = new Set<string>();
             let existingClientIdSet = new Set<string>();
 
-            let clientObjs = await this._db!.collection('client').find({
-
-            }, {
-                projection: {
-                    _id: 1,
-                    name: 1
-                }
-            }).toArray();
+            let clientObjs = (await this._pool!.query(
+                `SELECT "_id", "name" FROM clients`
+            )).rows;
 
             for (let clientObj of clientObjs) {
-                clientObj.clientId = clientObj._id.toString();
-                newClientIdSet.add(clientObj._id.toString());
+                clientObj.clientId = clientObj._id;
+                newClientIdSet.add(clientObj._id);
             }
 
             // remove deleted clients from the list
@@ -87,58 +83,35 @@ class ClientStore {
                 latestLogs: []
             };
 
-            let clientOid = new mongodb.ObjectId(clientId);
+            let types = ['sensor', 'camera'];
 
-            let latestSensorLogs = await this._db!.collection('log').find({
-                clientId: clientOid,
-                type: 'sensor'
-            }, {
-                projection: {
-                    _id: 0,
-                    timestamp: 1
+            for (let type of types) {
+                let latestLogs = (await this._pool!.query(
+                    `SELECT DISTINCT ON ("typeId")
+                        "timestamp",
+                        "type",
+                        "typeId",
+                        "obj"
+                    FROM logs
+                    WHERE
+                        "clientId"=$1 AND
+                        "type"=$2
+                    ORDER BY "typeId", "timestamp" DESC
+                    LIMIT 1;`,
+                    [clientId, type]
+                )).rows;
+
+                for (let log of latestLogs) {
+                    if (type === 'camera') {
+                        log.obj.buf = Buffer.from(log.obj.buf, 'base64');
+                    }
+                    client.latestLogs.push({
+                        timestamp: log.timestamp,
+                        type: log.type,
+                        typeId: log.typeId,
+                        obj: log.obj
+                    });
                 }
-            })
-            .sort({'timestamp': -1})
-            .limit(1)
-            .toArray();
-
-            for (let log of latestSensorLogs) {
-                client.latestLogs.push({
-                    timestamp: log.timestamp,
-                    type: log.type,
-                    obj: log.obj
-                });
-            }
-
-
-            let latestCameraLogs = await this._db!.collection('log').aggregate([
-                {
-                    "$match": {
-                        clientId: clientOid,
-                        type: 'camera'
-                    }
-                },
-                {
-                    "$sort": {
-                        timestamp: 1
-                    }
-                },
-                {
-                    "$group": {
-                        _id: "$obj.name",
-                        doc: {$first:"$$ROOT"}
-                    }
-                }
-            ]).toArray();
-
-            for (let log of latestCameraLogs) {
-                log.doc.obj.buf = log.doc.obj.buf?.buffer;
-
-                client.latestLogs.push({
-                    timestamp: log.doc.timestamp,
-                    type: log.doc.type,
-                    obj: log.doc.obj
-                });
             }
 
             this._clientStore.set(clientId, client);
@@ -201,29 +174,24 @@ class ClientStore {
     ): Promise<SpabLog | undefined> {
 
         let logClient: SpabDataStruct.ILogClient | undefined;
-        let clientOid: mongodb.ObjectId | undefined;
 
         try {
             logClient = SpabDataStruct.LogClient.decode(new Uint8Array(logClientEncoded));
-            clientOid = new mongodb.ObjectId(clientId);
 
-            let client = await this._db!.collection('client').findOne({
-                _id: clientOid
-            }, {
-                projection: {
-                    _id: 1
-                }
-            });
+            if (!logClient) {
+                return;
+            }
 
+            let client = (await this._pool!.query(
+                `SELECT "_id" FROM clients WHERE "_id"=$1`,
+                [clientId]
+            )).rows[0];
+            
             if (!client) {
                 return;
             }
 
-            if (!logClient || !clientOid) {
-                return;
-            }
-
-            if (logClient.id) {
+            if (logClient.logId) {
                 // cached data
 
                 // invalid timestamp
@@ -232,16 +200,10 @@ class ClientStore {
                 }
 
                 // check if the cached log is in the database
-                let existingLog = await this._db!.collection('log').findOne({
-                    id: logClient.id,
-                    timestamp: logClient.timestamp,
-                    type: logClient.type
-                }, {
-                    projection: {
-                        _id: 1,
-                        two_factor: 1
-                    }
-                });
+                let existingLog = (await this._pool!.query(
+                    `SELECT "logId" FROM logs WHERE "clientId"=$1 AND "timestamp"=$2 AND "logId"=$3`,
+                    [clientId, logClient.timestamp, logClient.logId]
+                )).rows[0];
 
                 if (existingLog) {
                     return;
@@ -249,23 +211,18 @@ class ClientStore {
             } else {
                 // real time data
                 logClient.timestamp = (new Date()).getTime();
-                delete logClient.id;
+                delete logClient.logId;
             }
 
 
             let dbLog: DbLog = logClient;
-            dbLog.clientId = clientOid;
+            dbLog.clientId = clientId;
 
-            let lastLogDataFilter: any = {
-                clientId: dbLog.clientId,
-                type: logClient.type
-            };
             let logFreq = 60 * 1000;
 
             if (logClient.type === 'camera') {
                 dbLog.obj = SpabDataStruct.CameraData.decode(dbLog.data!);
                 dbLog.obj.buf = Buffer.from(dbLog.obj.buf);
-                lastLogDataFilter["obj.name"] = dbLog.obj.name;
                 logFreq = 60 * 1000;
             } else if (logClient.type === 'sensor') {
                 dbLog.obj = SpabDataStruct.SensorData.decode(dbLog.data!);
@@ -274,33 +231,41 @@ class ClientStore {
 
             delete dbLog.data;
 
+
             // forcefully remove deleted properties
             dbLog = {...dbLog};
 
             let lastLogTimestamp = 0;
-            if (!logClient?.id) {
+            if (!logClient?.logId) {
                 // find last log's timestamp
-                lastLogTimestamp = (await this._db!.collection('log').find(
-                    lastLogDataFilter, 
-                    {
-                        projection: {
-                            _id: 0,
-                            timestamp: 1
-                        }
-                    }
-                )
-                .sort({'timestamp': -1})
-                .limit(1)
-                .toArray())[0]?.timestamp ?? 0;
+                let latestLog = (await this._pool!.query(
+                    `SELECT MAX("timestamp") as "timestamp" FROM logs WHERE "clientId"=$1 AND "type"=$2 AND "typeId"=$3 AND "logId" IS NULL`,
+                    [clientId, logClient.type, logClient.typeId]
+                )).rows[0];
+
+                if (latestLog && latestLog.timestamp) {
+                    lastLogTimestamp = latestLog.timestamp;
+                }
             }
 
             if (dbLog.timestamp! - lastLogTimestamp > logFreq) {
-                await this._db!.collection('log').insertOne(dbLog);
+                if (dbLog.type === 'camera') {
+                    dbLog = Object.assign({}, logClient);
+                    dbLog.obj = Object.assign({}, dbLog.obj);
+                    dbLog.obj.buf = dbLog.obj.buf.toString('base64');
+                }
+
+                await this._pool!.query(
+                    `INSERT INTO logs ("clientId", "timestamp", "logId", "type", "typeId", "obj") VALUES ($1, $2, $3, $4, $5, $6)`,
+                    [clientId, dbLog.timestamp, dbLog.logId, dbLog.type, dbLog.typeId, dbLog.obj]
+                );
             }
 
             return this.addLog(logClient);
 
-        } catch (e) { }
+        } catch (e) {
+
+        }
 
         return undefined;
     }
@@ -344,10 +309,7 @@ class ClientStore {
         for (let spabLog of spabClient.latestLogs) {
             if (
                 log.type === spabLog.type &&
-                (
-                    log.type === 'sensor' ||
-                    (log.type === 'camera' && log.obj.name === spabLog.obj.name)
-                )
+                log.typeId === spabLog.typeId
             ) {
                 if (log.timestamp && log.timestamp > spabLog.timestamp) {
                     spabLog.timestamp = log.timestamp;
@@ -357,16 +319,6 @@ class ClientStore {
                     return;
                 }
             }
-        }
-
-        if (log.timestamp && (log.type === 'sensor' || log.type === 'camera')) {
-            let spabLog: SpabLog = {
-                type: log.type,
-                timestamp: log.timestamp!,
-                obj: log.obj
-            };
-            spabClient.latestLogs.push(spabLog);
-            return spabLog;
         }
 
         return;

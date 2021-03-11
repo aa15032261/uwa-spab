@@ -5,14 +5,17 @@ export namespace SpabDataStruct {
     /** Properties of a LogClient. */
     interface ILogClient {
 
-        /** LogClient id */
-        id?: (number|null);
+        /** LogClient logId */
+        logId?: (number|null);
 
         /** LogClient timestamp */
         timestamp?: (number|null);
 
         /** LogClient type */
         type?: (string|null);
+
+        /** LogClient typeId */
+        typeId?: (string|null);
 
         /** LogClient data */
         data?: (Uint8Array|null);
@@ -27,14 +30,17 @@ export namespace SpabDataStruct {
          */
         constructor(properties?: SpabDataStruct.ILogClient);
 
-        /** LogClient id. */
-        public id: number;
+        /** LogClient logId. */
+        public logId: number;
 
         /** LogClient timestamp. */
         public timestamp: number;
 
         /** LogClient type. */
         public type: string;
+
+        /** LogClient typeId. */
+        public typeId: string;
 
         /** LogClient data. */
         public data: Uint8Array;
@@ -122,6 +128,9 @@ export namespace SpabDataStruct {
         /** LogGui type */
         type?: (string|null);
 
+        /** LogGui typeId */
+        typeId?: (string|null);
+
         /** LogGui data */
         data?: (Uint8Array|null);
     }
@@ -143,6 +152,9 @@ export namespace SpabDataStruct {
 
         /** LogGui type. */
         public type: string;
+
+        /** LogGui typeId. */
+        public typeId: string;
 
         /** LogGui data. */
         public data: Uint8Array;
@@ -221,9 +233,6 @@ export namespace SpabDataStruct {
     /** Properties of a CameraData. */
     interface ICameraData {
 
-        /** CameraData name */
-        name?: (string|null);
-
         /** CameraData buf */
         buf?: (Uint8Array|null);
     }
@@ -236,9 +245,6 @@ export namespace SpabDataStruct {
          * @param [properties] Properties to set
          */
         constructor(properties?: SpabDataStruct.ICameraData);
-
-        /** CameraData name. */
-        public name: string;
 
         /** CameraData buf. */
         public buf: Uint8Array;

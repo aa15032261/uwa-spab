@@ -1,7 +1,6 @@
 import * as path from 'path';
 
 import * as express from 'express';
-import * as mongodb from 'mongodb';
 import * as fs from 'fs-extra';
 
 import { LoginController, LoginSession, LoginStatus } from './LoginController';
@@ -9,10 +8,11 @@ import { LoginController, LoginSession, LoginStatus } from './LoginController';
 
 import { Validator } from 'jsonschema';
 import { SessionController, SessionStruct } from './SessionController';
+import { Pool } from 'pg';
 
 export class RestApi {
 
-    private _db?: mongodb.Db;
+    private _pool?: Pool;
 
     constructor(
         app: express.Express,
@@ -23,7 +23,7 @@ export class RestApi {
         let loginHandler = loginController.getLoginHandler();
 
         app.get(
-            ['/', '/s'],
+            [BASE_URL, BASE_URL + '/', BASE_URL + '/s'],
             sessionHandler,
             loginHandler,
             (
@@ -40,7 +40,11 @@ export class RestApi {
             }
         )
 
+        // spab-server static files
+        app.use(BASE_URL + '/static', express.static(path.resolve(__dirname, './../static')));
 
+
+        // spab-gui files
         let spabGuiRouter = express.Router();
         let spabGuiRoute = express.static(path.resolve(__dirname, './../../spab-gui/dist'));
         spabGuiRouter.get(
@@ -62,15 +66,13 @@ export class RestApi {
         );
         spabGuiRouter.get(
             '*',
-            async (req, res) => {
-                res.status(404).send();   
-            }
+            spabGuiRoute
         );
-        app.use('/spab_gui', spabGuiRouter);
+        app.use(BASE_URL + '/spab_gui', spabGuiRouter);
 
 
         app.post(
-            '/api/login',
+            BASE_URL + '/api/login',
             express.json(),
             sessionHandler,
             loginHandler,
@@ -137,7 +139,7 @@ export class RestApi {
 
 
         app.post(
-            '/api/logout',
+            BASE_URL + '/api/logout',
             express.json(),
             sessionHandler,
             async (
@@ -167,7 +169,7 @@ export class RestApi {
         );
 
         app.get(
-            '/api/heartbeat',
+            BASE_URL + '/api/heartbeat',
             express.json(),
             sessionHandler,
             async (
@@ -185,7 +187,6 @@ export class RestApi {
             next: express.NextFunction
         ) => {
             if (err) {
-                console.log(err);
               res.status(500).send();
               return;
             }
@@ -193,7 +194,7 @@ export class RestApi {
         });
     }
 
-    public updateDbPool(db: mongodb.Db) {
-        this._db = db;
+    public updateDbPool(pool: Pool) {
+        this._pool = pool;
     }
 }

@@ -22,7 +22,8 @@
           "options": {
             "outputPath": "dist",
             "index": "src/index.html",
-            "deployUrl": "/spab_gui/",
+            "baseHref": "/spab_2021s1/",
+            "deployUrl": "/spab_2021s1/spab_gui/",
             "main": "src/main.ts",
             "polyfills": "src/polyfills.ts",
             "tsConfig": "tsconfig.app.json",
@@ -72,13 +73,15 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
             "browserTarget": "spab-gui:build",
-            "baseHref": "/spab_gui/",
-            "host": "spab.toms.directory"
+            "baseHref": "/spab_2021s1/",
+            "deployUrl": "/spab_2021s1/spab_gui/",
+            "host": "therevproject.com"
           },
           "configurations": {
             "production": {
               "browserTarget": "spab-gui:build:production",
-              "baseHref": "/spab_gui/"
+              "baseHref": "/spab_2021s1/",
+              "deployUrl": "/spab_2021s1/spab_gui/"
             }
           }
         },

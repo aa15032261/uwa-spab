@@ -1,10 +1,10 @@
 // import config file
 import './Config';
 
-import * as mongodb from 'mongodb'
 import * as express from 'express';
-import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { SessionStruct } from 'SessionController';
+import { Pool } from 'pg';
 
 interface LoginSession {
     lastLogin?: number,
@@ -22,7 +22,7 @@ interface LoginStatus {
 
 class LoginController {
 
-    private _db?: mongodb.Db;
+    private _pool?: Pool;
 
     constructor() {}
 
@@ -57,7 +57,7 @@ class LoginController {
         }
 
         try {
-            if (!this._db) {
+            if (!this._pool) {
                 throw 'db not ready';
             }
 
@@ -75,9 +75,10 @@ class LoginController {
                 throw 'invalid session';
             }
 
-            let userObj = await this._db.collection('user').findOne({
-                _id: new mongodb.ObjectId(sessionObj.userId)
-            });
+            let userObj = (await this._pool.query(
+                'SELECT * FROM users WHERE _id = $1', 
+                [sessionObj.userId]
+            )).rows[0];
 
             if (!userObj) {
                 throw 'not found';
@@ -98,22 +99,41 @@ class LoginController {
 
 
 
-    private async _verifyUserPass(clrPw: string, bcryptedPw: string) {
-        return await bcrypt.compare(
-            clrPw + USER_PASSWORD_SALT,
-            bcryptedPw
-        );
+    public _verifyUserPass(clrPw: string, scryptedPw: string) {
+        try {
+            let [saltHex, pwHex] = scryptedPw.split(":");
+
+            let salt = Buffer.from(saltHex, 'base64');
+    
+            let pw = crypto.scryptSync(
+                clrPw + USER_PASSWORD_SALT,
+                salt, 
+                64,
+                {
+                    cost: 16384,
+                    blockSize: 8,
+                    parallelization: 1
+                }
+            ).toString('base64');
+    
+            return pwHex === pw;
+        } catch (e) {
+
+        }
+
+        return false;
     }
 
     public async login(email: string, clrPw: string, sessionStruct: SessionStruct): Promise<string | undefined> {
         try {
-            if (!this._db) {
+            if (!this._pool) {
                 throw 'internal error';
             }
-    
-            let userObj = await this._db.collection('user').findOne({
-                email: email
-            });
+
+            let userObj = (await this._pool.query(
+                'SELECT * FROM users WHERE email = $1', 
+                [email]
+            )).rows[0];
     
             if (!userObj) {
                 return 'invalid credential';
@@ -129,21 +149,18 @@ class LoginController {
                 }
 
                 let sessionObj = sessionStruct.data as LoginSession;
-                sessionObj.userId = userObj._id.toString();
+                sessionObj.userId = userObj._id;
                 sessionObj.lastLogin = (new Date()).getTime();
                 userObj.failedAttempt = 0;
             } else {
                 userObj.failedAttempt++;
             }
-    
-            await this._db.collection('user').updateOne({
-                _id: userObj._id
-            }, {
-                $set: {
-                    failedAttempt: userObj.failedAttempt
-                }
-            });
-    
+
+            await this._pool.query(
+                'UPDATE users SET "failedAttempt"=$1 WHERE "_id"=$2',
+                [userObj.failedAttempt, userObj._id]
+            );
+
             return userObj.failedAttempt === 0 ? undefined : 'invalid credential';
 
         } catch (e) {
@@ -167,12 +184,23 @@ class LoginController {
         return;
     }
 
-    public async genBcryptedPass(clrPw: string) {
-        return await bcrypt.hash(clrPw + USER_PASSWORD_SALT, 12)
+    public genScryptedPass(clrPw: string) {
+        let salt = crypto.randomBytes(16);
+
+        return salt.toString('base64') + ':' + crypto.scryptSync(
+            clrPw + USER_PASSWORD_SALT,
+            salt, 
+            64,
+            {
+                cost: 16384,
+                blockSize: 8,
+                parallelization: 1
+            }
+        ).toString('base64');
     }
 
-    public updateDbPool(db: mongodb.Db) {
-        this._db = db;
+    public updateDbPool(pool: Pool) {
+        this._pool = pool;
     }
 }
 

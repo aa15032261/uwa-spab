@@ -3,9 +3,9 @@ import './Config';
 
 import * as cookieParser from 'cookie-parser';
 import * as crypto from 'crypto';
-import * as mongodb from 'mongodb';
 import * as express from 'express';
 import { IncomingHttpHeaders } from 'http';
+import { Pool } from 'pg';
 
 interface SessionStruct {
     autoGen: boolean,
@@ -17,8 +17,7 @@ interface SessionStruct {
 
 class SessionController {
 
-    private _db?: mongodb.Db;
-    private _collectionName: string = 'session';
+    private _pool?: Pool;
 
     private _cookieIv: Buffer;
     private _cookieKey: Buffer;
@@ -42,33 +41,24 @@ class SessionController {
         let dataKeyHash = crypto.createHash('sha256');
         dataKeyHash.update(SESSION_COOKIE_KEY);
         this._dataKey = dataKeyHash.digest();
+
+        // clean up session every 15 mins
+        setInterval(async () => {
+            try {
+                if (!this._pool) {
+                    return;
+                }
+    
+                await this._pool.query(
+                    `DELETE FROM sessions WHERE "expireAt" < $1`,
+                    [(new Date()).getTime()]
+                );
+            } catch (e) {}
+        }, 15 * 60 * 1000);
     }
 
-    private _setupAutoCleanup() {
-        let self = this;
-
-        if (!this._db) {
-            return;
-        }
-
-        this._db.collection(this._collectionName).dropIndex('expire_' + SESSION_NAME).catch((err) => { });
-
-        this._db.collection(this._collectionName).createIndex({ 'expireAt': 1 }, { 
-            name: 'expire_' + SESSION_NAME, 
-            expireAfterSeconds: 0, 
-            partialFilterExpression: {
-                name: SESSION_NAME
-            }
-        }).catch((err) => {
-            setTimeout(() => {
-                this._setupAutoCleanup();
-            }, 60000);
-        });
-    }
-
-    public updateDbPool(db: mongodb.Db) {
-        this._db = db;
-        this._setupAutoCleanup();
+    public updateDbPool(pool: Pool) {
+        this._pool = pool;
     }
 
 
@@ -130,7 +120,7 @@ class SessionController {
 
 
     private async _generateToken(): Promise<{token: string, encryptedToken: string} | undefined> {
-        if (!this._db) {
+        if (!this._pool) {
             return undefined;
         }
 
@@ -139,7 +129,10 @@ class SessionController {
                 let token = crypto.randomBytes(64).toString('hex');
 
                 //get user account from database
-                let res = await this._db.collection(this._collectionName).findOne({ _id: token, name: SESSION_NAME});
+                let res = (await this._pool.query(
+                    `SELECT * FROM sessions WHERE "_id"=$1 AND "name"=$2`,
+                    [token, SESSION_NAME]
+                )).rows[0];
 
                 if (res) {
                     if (i === 4) {
@@ -242,11 +235,11 @@ class SessionController {
         data: any
     ): Promise<string | undefined> {
         try {
-            if (!this._db) {
+            if (!this._pool) {
                 throw 'fail';
             }
     
-            let expire = new Date(new Date().getTime() + SESSION_TTL * 1000);
+            let expire = new Date().getTime() + SESSION_TTL * 1000;
             info = this._encrypt(this._generateR(JSON.stringify(info)), 'data');
             data = this._encrypt(this._generateR(JSON.stringify(data)), 'data');
 
@@ -257,14 +250,11 @@ class SessionController {
             }
                 
             // success
-            await this._db!.collection(this._collectionName).insertOne({
-                _id: tokens.token,
-                name: SESSION_NAME,
-                expireAt: expire,
-                info: info,
-                data: data
-            });
-            
+            await this._pool.query(
+                `INSERT INTO sessions ("_id", "name", "expireAt", "info", "data") VALUES ($1, $2, $3, $4, $5)`,
+                [tokens.token, SESSION_NAME, expire, info, data]
+            )
+
             return tokens.encryptedToken;
         } catch (e) {
 
@@ -275,15 +265,14 @@ class SessionController {
 
     private async _deleteSessionInternal(token: string) {
         try {
-            if (!this._db) {
+            if (!this._pool) {
                 return;
             }
 
-            await this._db.collection(this._collectionName).updateOne(
-                {_id: token, name: SESSION_NAME}, 
-                {$set: {expireAt: new Date(new Date().getTime() + 60 * 1000)}}
+            await this._pool.query(
+                `UPDATE sessions SET "expireAt"=$1 WHERE "_id"=$2 AND "name"=$3`,
+                [new Date().getTime() + 60 * 1000, token, SESSION_NAME]
             );
-
         } catch (e) { }
     }
 
@@ -298,7 +287,7 @@ class SessionController {
 
     private async _getSessionData(encryptedToken: string, info: any): Promise<any | undefined> {
         try {
-            if (!this._db) {
+            if (!this._pool) {
                 return;
             }
 
@@ -308,20 +297,22 @@ class SessionController {
                 return;
             }
 
-            let res = await this._db.collection(this._collectionName).findOne({ _id: token, name: SESSION_NAME });
+            let res = (await this._pool.query(
+                `SELECT * FROM sessions WHERE "_id"=$1 AND "name"=$2`,
+                [token, SESSION_NAME]
+            )).rows[0];
 
             if (res) {
                 let time = new Date();
-                let expire = res.expireAt;
 
-                if (expire instanceof Date && time.getTime() < expire.getTime()) {
+                if (res.expireAt && time.getTime() < res.expireAt) {
                     if (!res.info) {
-                        throw 'session corrupted';
+                        throw 'sessions corrupted';
                     }
 
-                    if (this._verifyInfo(JSON.parse(this._removeR(this._decrypt(res.info.buffer, 'data'))), info) === true) {
+                    if (this._verifyInfo(JSON.parse(this._removeR(this._decrypt(res.info, 'data'))), info) === true) {
                         if (res.data) {
-                            return JSON.parse(this._removeR(this._decrypt(res.data.buffer, 'data')));
+                            return JSON.parse(this._removeR(this._decrypt(res.data, 'data')));
                         }
                     } else {
                         //hijacked session

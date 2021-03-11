@@ -2,21 +2,22 @@ package SpabDataStruct;
 syntax = "proto3";
 
 message LogClient {
-    double id = 1;
+    double logId = 1;
     double timestamp = 2;
-    string type = 4;
+    string type = 3;
+    string typeId = 4;
     bytes data = 5;
 }
 
 message LogGui {
     string clientId = 1;
     double timestamp = 2;
-    string type = 4;
+    string type = 3;
+    string typeId = 4;
     bytes data = 5;
 }
 
 message CameraData {
-    string name = 1;
     bytes buf = 2;
 }
 message SensorData {

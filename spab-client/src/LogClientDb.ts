@@ -30,7 +30,7 @@ export class LogClientDb {
 
             // initialise db structure
             this._db.run(
-                'CREATE TABLE IF NOT EXISTS OfflineCache (id INTEGER, timestamp INTEGER, type TEXT, data BLOB);',
+                'CREATE TABLE IF NOT EXISTS OfflineCache (logId INTEGER, timestamp INTEGER, type TEXT, typeId TEXT, data BLOB);',
                 this._dbErrorHandler
             );
 
@@ -59,29 +59,29 @@ export class LogClientDb {
         return randNum;
     }
 
-    public add(type: string, data: Uint8Array) {
+    public add(type: string, typeId: string, data: Uint8Array) {
         if (!this._ready) {
             return;
         }
 
-        let id = this._4bytesRand();
+        let logId = this._4bytesRand();
         let timestamp = (new Date()).getTime();
 
         this._db.run(
-            'INSERT INTO OfflineCache VALUES (?, ?, ?, ?)',
-            [id, timestamp, type, data],
+            'INSERT INTO OfflineCache (logId, timestamp, type, typeId, data) VALUES (?, ?, ?, ?, ?)',
+            [logId, timestamp, type, typeId, data],
             this._dbErrorHandler
         );
     }
 
-    public remove(id: number, timestamp: number, type: string) {
+    public remove(logId: number, timestamp: number, type: string, typeId: string) {
         if (!this._ready) {
             return;
         }
 
         this._db.run(
-            'DELETE FROM OfflineCache WHERE id=? AND timestamp=? AND type=?',
-            [id, timestamp, type],
+            'DELETE FROM OfflineCache WHERE logId=? AND timestamp=? AND type=? AND typeId=?',
+            [logId, timestamp, type, typeId],
             this._dbErrorHandler
         );
     }
@@ -93,7 +93,7 @@ export class LogClientDb {
 
         return new Promise((resolve, reject) => {
             this._db.get(
-                'SELECT id, timestamp, type, data from OfflineCache order by timestamp limit 1',
+                'SELECT logId, timestamp, type, typeId, data from OfflineCache order by timestamp limit 1',
                 (err: any, row: any) => {
                     if (err) {
                         reject(err);

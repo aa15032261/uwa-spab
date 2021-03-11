@@ -38,10 +38,12 @@ export class MainController {
             }
 
             camera.camControl.imgCallback = (buf: Buffer) => {
-                this._handleNewCameraData({
-                    name: camera.name,
-                    buf: buf
-                });
+                this._handleNewCameraData(
+                    camera.name,
+                    {
+                        buf: buf
+                    }
+                );
             }
             camera.camControl.imgInterval = -1;
 
@@ -149,25 +151,26 @@ export class MainController {
         }
     }
 
-    private _handleNewCameraData(camData: SpabDataStruct.ICameraData) {
+    private _handleNewCameraData(camName: string, camData: SpabDataStruct.ICameraData) {
         let data = Buffer.from(SpabDataStruct.CameraData.encode(camData).finish());
-        this._handleNewData('camera', data);
+        this._handleNewData('camera', camName, data);
     }
 
-    private _handleNewSensorData(snrData: SpabDataStruct.ISensorData) {
+    private _handleNewSensorData(snrName: string, snrData: SpabDataStruct.ISensorData) {
         let data = Buffer.from(SpabDataStruct.SensorData.encode(snrData).finish());
-        this._handleNewData('sensor', data);
+        this._handleNewData('sensor', snrName, data);
     }
 
-    private _handleNewData(type: 'camera' | 'sensor', data: Buffer) {
+    private _handleNewData(type: 'camera' | 'sensor', typeId: string, data: Buffer) {
         if (this._checkOnline()) {
             let log: SpabDataStruct.ILogClient = {
                 type: type,
+                typeId: typeId,
                 data: data
             };
             this._sendMsgAck('log', [SpabDataStruct.LogClient.encode(log).finish()], false);
         } else {
-            this._logClientDb.add(type, data);
+            this._logClientDb.add(type, typeId, data);
         }
     }
 
@@ -236,7 +239,7 @@ export class MainController {
                             SpabDataStruct.LogClient.encode(log!).finish()
                         ], true))
                     ) {
-                        await this._logClientDb.remove(log.id!, log.timestamp!, log.type!);
+                        await this._logClientDb.remove(log.logId!, log.timestamp!, log.type!, log.typeId!);
                     } else {
                         throw 'network error';
                     }
