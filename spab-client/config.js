@@ -6,10 +6,10 @@ module.exports = function() {
 
     this.SERVER_URL = 'wss://therevproject.com';
     this.CLIENT_API_PATH = '/spab_2021s1/api/client_ws/';
-    this.CLIENT_API_TOKEN = '6fca079c9acf449ee793b7478936e8d524ebfc0ff964a8c2d5ea4b8597535692';
+    this.CLIENT_API_TOKEN = '9a1f6baa609b9c86522b81f636a8f0554bc34edbf66bb743304969dcf610f52b';
     this.CLIENT_TWO_FACTOR = {
         type: 'totp',
-        secret: 'MYCSAYK7KMCH4KIH'
+        secret: 'IVJWUPKHDZMHQUZP'
     };
 
     this.CAM_CFGS = [

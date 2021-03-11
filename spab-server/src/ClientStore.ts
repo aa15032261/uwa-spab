@@ -236,7 +236,7 @@ class ClientStore {
             dbLog = {...dbLog};
 
             let lastLogTimestamp = 0;
-            if (!logClient?.logId) {
+            if (!(logClient.logId)) {
                 // find last log's timestamp
                 let latestLog = (await this._pool!.query(
                     `SELECT MAX("timestamp") as "timestamp" FROM logs WHERE "clientId"=$1 AND "type"=$2 AND "typeId"=$3 AND "logId" IS NULL`,
@@ -263,9 +263,7 @@ class ClientStore {
 
             return this.addLog(logClient);
 
-        } catch (e) {
-
-        }
+        } catch (e) { }
 
         return undefined;
     }
