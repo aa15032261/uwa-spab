@@ -304,6 +304,7 @@ class ClientStore {
             return;
         }
 
+        // update existing log
         for (let spabLog of spabClient.latestLogs) {
             if (
                 log.type === spabLog.type &&
@@ -317,6 +318,18 @@ class ClientStore {
                     return;
                 }
             }
+        }
+
+        // insert log
+        if (log.type === 'camera' || log.type === 'sensor') {
+            let spabLog: SpabLog = {
+                type: log.type,
+                typeId: log.typeId!,
+                timestamp: log.timestamp!,
+                obj: log.obj
+            }
+            spabClient.latestLogs.push(spabLog);
+            return spabLog;
         }
 
         return;

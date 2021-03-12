@@ -31,6 +31,7 @@ async function main() {
         console.log('4: List clients');
         console.log('5: Create a new client');
         console.log('6: Remove a client');
+        console.log(`7: Remove client's logs`);
         console.log('');
 
         let option = await prompts({
@@ -38,12 +39,13 @@ async function main() {
             name: 'value',
             message: 'Option:',
             validate: (value) => {
-                return value >= 1 && value <= 6 || value === 3871
+                return value >= 1 && value <= 7 || value === 3871
             }
         });
 
         if (option.value === 3871) {
             await rebuildDbStructure(pool);
+            console.log('Successful');
         } else if (option.value === 1) {
 
             let users = (await pool.query(
@@ -146,6 +148,22 @@ async function main() {
             let option = await prompts(questions);
             await pool.query(
                 `DELETE FROM clients WHERE "_id"=$1`,
+                [option._id]
+            );
+
+            console.log('Successful');
+        } else if (option.value === 7) {
+            let questions: PromptObject<string>[] = [
+                {
+                  type: 'text',
+                  name: '_id',
+                  message: '_id: '
+                }
+            ];
+
+            let option = await prompts(questions);
+            await pool.query(
+                `DELETE FROM logs WHERE "clientId"=$1`,
                 [option._id]
             );
 

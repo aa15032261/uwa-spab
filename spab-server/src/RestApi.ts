@@ -23,7 +23,7 @@ export class RestApi {
         let loginHandler = loginController.getLoginHandler();
 
         app.get(
-            [BASE_URL, BASE_URL + '/', BASE_URL + '/s'],
+            [BASE_URL, BASE_URL + '/', BASE_URL + '/index.html.var', BASE_URL + '/s'],
             sessionHandler,
             loginHandler,
             (
