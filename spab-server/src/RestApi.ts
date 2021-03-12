@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as express from 'express';
 import * as fs from 'fs-extra';
 
-import { LoginController, LoginSession, LoginStatus } from './LoginController';
+import { LoginController, LoginStatus } from './LoginController';
 
 
 import { Validator } from 'jsonschema';

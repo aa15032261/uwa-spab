@@ -4,6 +4,13 @@
 
     chdir($spab_server_path);
 
+    if ($_GET["type"] == 'list') {
+        echo '====LIST====<br>';
+        sleep(2);
+        echo nl2br(@shell_exec('ps'));
+        echo '<br>';
+    }
+
     if ($_GET["type"] == 'killnode') {
         echo '====KILL NODE====<br>';
         echo nl2br(@shell_exec('killall -s SIGKILL node'));

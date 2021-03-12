@@ -12,31 +12,14 @@ import { LoginController } from './LoginController';
 import { WebSocketApi } from './WebSocketApi';
 import { RestApi } from './RestApi';
 import { Pool } from 'pg';
+import { O_CREAT, O_SYNC, O_WRONLY } from 'constants';
 
+const pidPath = path.resolve(__dirname, '../spab_run.pid');
+
+main();
 
 async function main() {
     try {
-        const pidPath = path.resolve(__dirname, '../spab_run.pid');
-
-        if (!await fs.pathExists(pidPath)) {
-            await fs.writeFile(path.resolve(__dirname, '../spab_run.pid'), process.pid.toString());
-
-            ['exit', 'uncaughtException', 'SIGINT', 'SIGUSR1', 'SIGUSR2', 'SIGTERM'].forEach((eventType) => {
-                process.on(eventType as any, () => {
-                    try {
-                        fs.removeSync(pidPath);
-                    } catch (e) { }
-                    
-                    if (eventType !== 'exit') {
-                        process.exit();
-                    }
-                });
-            });
-        } else {
-            console.log('spab_run.pid exists');
-            return;
-        }
-
         const app = express();
         const httpServer = http.createServer(app);
     
@@ -58,10 +41,46 @@ async function main() {
         loginController.updateDbPool(pool);
         restApi.updateDbPool(pool);
         websocketApi.updateDbPool(pool);
+
+        httpServer.on('error', (err) => {
+            console.log(err);
+            process.exit();
+        });
+
+        httpServer.listen(PORT, () => {
+            const pidPath = path.resolve(__dirname, '../spab_run.pid');
+            fs.writeFileSync(pidPath, process.pid.toString());
     
-        httpServer.listen(PORT);
-    } catch (e) {}
+            ['exit', 'uncaughtException'].forEach((eventType) => {
+                process.on(eventType as any, (e) => {
+                    try {
+                        fs.removeSync(pidPath);
+                    } catch (e) { }
+                    
+                    console.log(e);
+        
+                    if (eventType !== 'exit') {
+                        process.exit();
+                    }
+                });
+            });
+        
+            let signals: NodeJS.Signals[] = ['SIGABRT', 'SIGINT', 'SIGTERM', 'SIGUSR1', 'SIGUSR2', 'SIGXCPU'];
+            signals.forEach((eventType) => {
+                process.on(eventType, (signal: NodeJS.Signals) => {
+                    try {
+                        fs.removeSync(pidPath);
+                    } catch (e) { }
+                    
+                    console.log(signal);
+                    process.exit();
+                });
+            });
+        });
+
+        
+    } catch (e) {
+        console.log(e);
+        process.exit();
+    }
 }
-
-main();
-
