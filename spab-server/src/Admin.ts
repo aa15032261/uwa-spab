@@ -53,10 +53,16 @@ async function main() {
             )).rows;
 
             for (let user of users) {
+                let lastLogin = parseInt(user.lastLogin);
+
+                if (!lastLogin) {
+                    lastLogin = 0;
+                }
+
                 console.log({
                     _id: user._id,
                     email: user.email,
-                    lastLogin: new Date(user.lastLogin),
+                    lastLogin: new Date(lastLogin),
                     isBanned: user.failedAttempt > 5
                 });
             }

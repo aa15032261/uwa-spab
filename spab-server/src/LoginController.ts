@@ -142,6 +142,8 @@ class LoginController {
             if (userObj.failedAttempt > 5) {
                 return 'account disabled';
             }
+
+            let curTime = (new Date()).getTime();
     
             if (this._verifyUserPass(clrPw, userObj.pass)) {
                 if (!sessionStruct.data) {
@@ -150,15 +152,15 @@ class LoginController {
 
                 let sessionObj = sessionStruct.data as LoginSession;
                 sessionObj.userId = userObj._id;
-                sessionObj.lastLogin = (new Date()).getTime();
+                sessionObj.lastLogin = curTime;
                 userObj.failedAttempt = 0;
             } else {
                 userObj.failedAttempt++;
             }
 
             await this._pool.query(
-                'UPDATE users SET "failedAttempt"=$1 WHERE "_id"=$2',
-                [userObj.failedAttempt, userObj._id]
+                'UPDATE users SET "failedAttempt"=$1, "lastLogin"=$2 WHERE "_id"=$3',
+                [userObj.failedAttempt, curTime, userObj._id]
             );
 
             return userObj.failedAttempt === 0 ? undefined : 'invalid credential';

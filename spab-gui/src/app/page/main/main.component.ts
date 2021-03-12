@@ -26,6 +26,10 @@ import {
 } from 'ol/source/OSM';
 
 import {
+  default as olSourceXYZ
+} from 'ol/source/XYZ';
+
+import {
   Attribution as olControlAttribution,
   FullScreen as olControlFullScreen,
   defaults as olControlDefaultControls
@@ -149,6 +153,16 @@ export class MainComponent implements OnInit, OnDestroy  {
       })
     });
 
+    // 'Powered by Esri', 'Source: Esri, DigitalGlobe, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN, and the GIS User Community'
+    // '© <a href="http://www.openseamap.org/">OpenSeaMap</a> contributors.',
+
+    let esriSatelliteLayer = new olLayerTile({
+      source: new olSourceXYZ({
+        url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        maxZoom: 20
+      })
+    });
+
     let openSeaMapLayer = new olLayerTile({
       source: new olSourceOSM({
         opaque: false,
@@ -156,15 +170,10 @@ export class MainComponent implements OnInit, OnDestroy  {
       })
     });
 
-    // '© <a href="http://www.openseamap.org/">OpenSeaMap</a> contributors.',
-    // olSourceOSMAttribution
-
     this._mainMap = new olMap({
       controls: [],
       layers: [
-        new olLayerTile({
-          source: new olSourceOSM()
-        }),
+        esriSatelliteLayer,
         openSeaMapLayer,
         mapMarkerLayer
       ],

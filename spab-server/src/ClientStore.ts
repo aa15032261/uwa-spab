@@ -226,7 +226,7 @@ class ClientStore {
                 logFreq = 60 * 1000;
             } else if (logClient.type === 'sensor') {
                 dbLog.obj = SpabDataStruct.SensorData.decode(dbLog.data!);
-                logFreq = 30 * 1000;
+                logFreq = 15 * 1000;
             }
 
             delete dbLog.data;
@@ -276,6 +276,7 @@ class ClientStore {
             clientId: clientId,
             timestamp: spabLog.timestamp,
             type: spabLog.type,
+            typeId: spabLog.typeId,
             data: Buffer.alloc(0)
         }
 
