@@ -7,10 +7,12 @@
     "dev": "nodemon -e ts  --exec \"npm run compile\""
   },
   "dependencies": {
+    "@ifrunistuttgart/node-mavlink": "^0.1.2",
     "@types/mozjpeg": "^5.0.0",
     "fs-extra": "^9.0.1",
     "mozjpeg": "^7.0.0",
     "otplib": "^12.0.1",
+    "serialport": "^9.0.7",
     "socket.io-client": "^3.1.1",
     "sqlite3": "^5.0.2",
     "tslib": "^1.14.1",
@@ -19,6 +21,7 @@
   "devDependencies": {
     "@types/fs-extra": "^9.0.6",
     "@types/node": "^13.13.40",
+    "@types/serialport": "^8.0.1",
     "@types/sqlite3": "^3.1.7",
     "eslint": "^7.19.0",
     "nodemon": "^2.0.7"
