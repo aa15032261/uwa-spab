@@ -23,6 +23,10 @@ module.exports = function() {
         }*/
     ];
 
+    //this.ARDUPILOT_COM_PATH = '/dev/ttyACM0';
+    this.ARDUPILOT_COM_PATH = '/dev/tty.usbserial-A10597BA';
+    this.ARDUPILOT_COM_BAUD = 57600;
+
     this.CAM_ONLINE_INTERVAL = 333;
     this.CAM_OFFLINE_INTERVAL = 1 * 60 * 1000;
 

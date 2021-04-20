@@ -312,8 +312,11 @@ export class MainComponent implements OnInit, OnDestroy  {
             this.utilsService.imgToCanvas(camCanvas!, img);
           });
         }
-        img.src = URL.createObjectURL(new Blob([spabLog.obj.buf], {type: 'image/jpg'}));
+        img.src = URL.createObjectURL(new Blob([spabLog.obj], {type: 'image/jpg'}));
       }, 1);
+    } else if (spabLog.type === 'sensor') {
+      console.log(spabLog);
+      console.log(new TextDecoder().decode(spabLog.obj));
     }
   }
 }

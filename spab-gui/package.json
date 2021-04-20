@@ -24,6 +24,7 @@
     "bootstrap": "^4.6.0",
     "d3": "^6.2.0",
     "element-resize-detector": "^1.2.2",
+    "fastestsmallesttextencoderdecoder": "^1.0.22",
     "material-icons": "^0.5.3",
     "ngx-bootstrap": "^6.2.0",
     "ol": "^6.4.3",

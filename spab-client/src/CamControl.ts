@@ -1,23 +1,23 @@
 import * as childProcess from 'child_process';
 import * as stream from 'stream';
-import * as mozjpeg from 'mozjpeg';
+//import * as mozjpeg from 'mozjpeg';
 
 export class CamControl {
 
     private static MAX_BUFFER_SIZE = 64 * 1024;
 
     private _f: ReadonlyArray<string> = [];
-    private _imgCallback: ((buf: Buffer) => void) | null = null;
+    private _imgCallback: ((buf: Buffer) => void) | undefined;
 
 
     private _imgInterval = -1;
-    private _ffmpegProcess: childProcess.ChildProcessWithoutNullStreams | null = null;
+    private _ffmpegProcess: childProcess.ChildProcessWithoutNullStreams | undefined;
 
     private _imgBuf = Buffer.alloc(0);
-    private _imgTimer: NodeJS.Timeout | null = null;
+    private _imgTimer: NodeJS.Timeout | undefined;
 
-    private _restartTimer: NodeJS.Timeout | null = null;
-    private _startTimer: NodeJS.Timeout | null = null;
+    private _restartTimer: NodeJS.Timeout | undefined;
+    private _startTimer: NodeJS.Timeout | undefined;
 
     private _callImgCallbackOnTimeout() {
         if (this._imgTimer) {
@@ -26,20 +26,20 @@ export class CamControl {
 
         this._imgTimer = setTimeout(async () => {
             if (this._imgCallback) {
-                //this._imgCallback(this._imgBuf);
-                let mozJpegProcess = childProcess.spawnSync(
-                    mozjpeg,
-                    ['-quality', '55'],
-                    {
-                        shell: false,
-                        input: this._imgBuf
-                    }
-                );
-                this._imgCallback(mozJpegProcess.stdout);
+                this._imgCallback(this._imgBuf);
+                // let mozJpegProcess = childProcess.spawnSync(
+                //     mozjpeg,
+                //     ['-quality', '55'],
+                //     {
+                //         shell: false,
+                //         input: this._imgBuf
+                //     }
+                // );
+                // this._imgCallback(mozJpegProcess.stdout);
             }
             this._imgBuf = Buffer.alloc(0);
-            this._imgTimer = null;
-        }, 20);
+            this._imgTimer = undefined;
+        }, 33);
     }
 
     private _restartFFMpeg() {
@@ -50,7 +50,7 @@ export class CamControl {
         if (!this._ffmpegProcess) {
             this._startTimer = setTimeout(() => {
                 this._startFFMpeg();
-                this._startTimer = null;
+                this._startTimer = undefined;
             }, 500);
         } else {
             if (!this._ffmpegProcess.killed) {
@@ -58,7 +58,7 @@ export class CamControl {
 
                 if (this._imgTimer) {
                     clearTimeout(this._imgTimer);
-                    this._imgTimer = null;
+                    this._imgTimer = undefined;
                 }
             }
 
@@ -72,10 +72,10 @@ export class CamControl {
                 } else {
                     this._startTimer = setTimeout(() => {
                         this._startFFMpeg();
-                        this._startTimer = null;
+                        this._startTimer = undefined;
                     }, 500);
                 }
-                this._restartTimer = null;
+                this._restartTimer = undefined;
             }, 500);
         }
     }
@@ -119,7 +119,7 @@ export class CamControl {
             });
 
             this._ffmpegProcess.on('exit', (code: number) => {
-                this._ffmpegProcess = null;
+                this._ffmpegProcess = undefined;
 
                 if (this._imgInterval > 0) {
                     this._restartFFMpeg();

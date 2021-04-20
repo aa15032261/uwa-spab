@@ -1,12 +1,13 @@
 // import config file
 import './Config';
 
+import { ArduPilotControl } from './ArduPilotControl';
 import { CamControl } from "./CamControl";
-import { io, Socket } from "socket.io-client";
 import { LogClientDb } from './LogClientDb';
 import { SpabDataStruct } from "./../../spab-data-struct/SpabDataStruct";
 
 import { authenticator } from 'otplib';
+import { io, Socket } from "socket.io-client";
 
 interface Camera {
     name: string,
@@ -22,6 +23,8 @@ export class MainController {
 
     private _syncTimer: NodeJS.Timeout | null = null;
 
+    private _apControl: ArduPilotControl | null = null;
+
     private _cameras: Camera[] = [];
     private _cameraTimer: NodeJS.Timeout | null = null;
 
@@ -29,6 +32,18 @@ export class MainController {
 
     constructor() {
         this._logClientDb = new LogClientDb(LOG_DB_PATH, CLIENT_API_TOKEN);
+
+        //init ArduPilot Controller
+        this._apControl = new ArduPilotControl(
+            ARDUPILOT_COM_PATH,
+            ARDUPILOT_COM_BAUD
+        );
+        this._apControl.msgCallback = (msgType, msg) => {
+            this._handleNewCameraData(
+                msgType,
+                Buffer.from(JSON.stringify(msg))
+            );
+        };
 
         // init cameras
         for (let camCfg of CAM_CFGS) {
@@ -40,9 +55,7 @@ export class MainController {
             camera.camControl.imgCallback = (buf: Buffer) => {
                 this._handleNewCameraData(
                     camera.name,
-                    {
-                        buf: buf
-                    }
+                    buf
                 );
             }
             camera.camControl.imgInterval = -1;
@@ -151,14 +164,12 @@ export class MainController {
         }
     }
 
-    private _handleNewCameraData(camName: string, camData: SpabDataStruct.ICameraData) {
-        let data = Buffer.from(SpabDataStruct.CameraData.encode(camData).finish());
-        this._handleNewData('camera', camName, data);
+    private _handleNewCameraData(camName: string, camData: Buffer) {
+        this._handleNewData('camera', camName, camData);
     }
 
-    private _handleNewSensorData(snrName: string, snrData: SpabDataStruct.ISensorData) {
-        let data = Buffer.from(SpabDataStruct.SensorData.encode(snrData).finish());
-        this._handleNewData('sensor', snrName, data);
+    private _handleNewSensorData(snrName: string, snrData: Buffer) {
+        this._handleNewData('sensor', snrName, snrData);
     }
 
     private _handleNewData(type: 'camera' | 'sensor', typeId: string, data: Buffer) {

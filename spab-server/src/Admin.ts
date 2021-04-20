@@ -182,16 +182,16 @@ async function main() {
 
 async function rebuildDbStructure(pool: Pool) {
     await pool.query(
-        `DROP TABLE logs;`
+        `DROP TABLE IF EXISTS logs;`
     );
     await pool.query(
-        `DROP TABLE sessions;`
+        `DROP TABLE IF EXISTS sessions;`
     );
     await pool.query(
-        `DROP TABLE users;`
+        `DROP TABLE IF EXISTS users;`
     );
     await pool.query(
-        `DROP TABLE clients;`
+        `DROP TABLE IF EXISTS clients;`
     );
 
     await pool.query(

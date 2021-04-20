@@ -32,6 +32,8 @@ class ClientStore {
     private _pool?: Pool;
     private _clientStore = new Map<string, SpabClient>();
 
+    private _clientStoreUpdateTimer?: ReturnType<typeof setTimeout>;
+
     constructor() { }
 
     public updateDbPool(pool: Pool) {
@@ -40,6 +42,18 @@ class ClientStore {
     }
 
     private async _updateClientList() {
+        if (!this._pool) {
+            return;
+        }
+
+        if (this._clientStoreUpdateTimer) {
+            clearTimeout(this._clientStoreUpdateTimer);
+        }
+
+        this._clientStoreUpdateTimer = setTimeout(async () => {
+            await this._updateClientList();
+        }, 15 * 60 * 1000);
+
         try {
             let newClientIdSet = new Set<string>();
             let existingClientIdSet = new Set<string>();
@@ -102,15 +116,19 @@ class ClientStore {
                 )).rows;
 
                 for (let log of latestLogs) {
-                    if (type === 'camera') {
-                        log.obj.buf = Buffer.from(log.obj.buf, 'base64');
+                    try {
+                        if (type === 'camera') {
+                            log.obj = Buffer.from(log.obj, 'base64');
+                        }
+                        client.latestLogs.push({
+                            timestamp: log.timestamp,
+                            type: log.type,
+                            typeId: log.typeId,
+                            obj: Buffer.from(log.obj, 'base64')
+                        });
+                    } catch (e) {
+
                     }
-                    client.latestLogs.push({
-                        timestamp: log.timestamp,
-                        type: log.type,
-                        typeId: log.typeId,
-                        obj: log.obj
-                    });
                 }
             }
 
@@ -221,11 +239,10 @@ class ClientStore {
             let logFreq = 60 * 1000;
 
             if (logClient.type === 'camera') {
-                dbLog.obj = SpabDataStruct.CameraData.decode(dbLog.data!);
-                dbLog.obj.buf = Buffer.from(dbLog.obj.buf);
+                dbLog.obj = dbLog.data!;
                 logFreq = 60 * 1000;
             } else if (logClient.type === 'sensor') {
-                dbLog.obj = SpabDataStruct.SensorData.decode(dbLog.data!);
+                dbLog.obj = dbLog.data!;
                 logFreq = 15 * 1000;
             }
 
@@ -249,15 +266,9 @@ class ClientStore {
             }
 
             if (dbLog.timestamp! - lastLogTimestamp > logFreq) {
-                if (dbLog.type === 'camera') {
-                    dbLog = Object.assign({}, logClient);
-                    dbLog.obj = Object.assign({}, dbLog.obj);
-                    dbLog.obj.buf = dbLog.obj.buf.toString('base64');
-                }
-
                 await this._pool!.query(
                     `INSERT INTO logs ("clientId", "timestamp", "logId", "type", "typeId", "obj") VALUES ($1, $2, $3, $4, $5, $6)`,
-                    [clientId, dbLog.timestamp, dbLog.logId, dbLog.type, dbLog.typeId, dbLog.obj]
+                    [clientId, dbLog.timestamp, dbLog.logId, dbLog.type, dbLog.typeId, Buffer.from(dbLog.obj).toString('base64')]
                 );
             }
 
@@ -280,12 +291,7 @@ class ClientStore {
             data: Buffer.alloc(0)
         }
 
-        if (spabLog.type === 'camera') {
-            logGui.data = SpabDataStruct.CameraData.encode(spabLog.obj).finish();
-        } else if (spabLog.type === 'sensor') {
-            logGui.data = SpabDataStruct.SensorData.encode(spabLog.obj).finish();
-        }
-
+        logGui.data = spabLog.obj;
         return Buffer.from(SpabDataStruct.LogGui.encode(logGui).finish());
     }
 

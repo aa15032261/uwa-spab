@@ -16,11 +16,3 @@ message LogGui {
     string typeId = 4;
     bytes data = 5;
 }
-
-message CameraData {
-    bytes buf = 2;
-}
-message SensorData {
-    double voltage = 1;
-}
-

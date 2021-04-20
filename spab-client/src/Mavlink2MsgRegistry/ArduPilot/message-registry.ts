@@ -225,11 +225,14 @@ import {GeneratorStatus} from './messages/generator-status';
 import {ActuatorOutputStatus} from './messages/actuator-output-status';
 import {WheelDistance} from './messages/wheel-distance';
 import {WinchStatus} from './messages/winch-status';
+import {IcarousHeartbeat} from './messages/icarous-heartbeat';
+import {IcarousKinematicBands} from './messages/icarous-kinematic-bands';
+import {NavFilterBias} from './messages/nav-filter-bias';
+import {RadioCalibration} from './messages/radio-calibration';
+import {UalbertaSysStatus} from './messages/ualberta-sys-status';
 import {UavionixAdsbOutCfg} from './messages/uavionix-adsb-out-cfg';
 import {UavionixAdsbOutDynamic} from './messages/uavionix-adsb-out-dynamic';
 import {UavionixAdsbTransceiverHealthReport} from './messages/uavionix-adsb-transceiver-health-report';
-import {IcarousHeartbeat} from './messages/icarous-heartbeat';
-import {IcarousKinematicBands} from './messages/icarous-kinematic-bands';
 export const messageRegistry: Array<[number, new (system_id: number, component_id: number) => MAVLinkMessage]> = [
 	[150, SensorOffsets],
 	[151, SetMagOffsets],
@@ -457,9 +460,12 @@ export const messageRegistry: Array<[number, new (system_id: number, component_i
 	[375, ActuatorOutputStatus],
 	[9000, WheelDistance],
 	[9005, WinchStatus],
+	[42000, IcarousHeartbeat],
+	[42001, IcarousKinematicBands],
+	[220, NavFilterBias],
+	[221, RadioCalibration],
+	[222, UalbertaSysStatus],
 	[10001, UavionixAdsbOutCfg],
 	[10002, UavionixAdsbOutDynamic],
 	[10003, UavionixAdsbTransceiverHealthReport],
-	[42000, IcarousHeartbeat],
-	[42001, IcarousKinematicBands],
 ];

@@ -7,6 +7,9 @@ declare global {
     var CLIENT_API_TOKEN: string;
     var CLIENT_TWO_FACTOR: {type: string, secret: string};
 
+    var ARDUPILOT_COM_PATH: string;
+    var ARDUPILOT_COM_BAUD: number;
+
     var CAM_CFGS: ReadonlyArray<{name: string, cfg: ReadonlyArray<string>}>;
     var CAM_ONLINE_INTERVAL: number;
     var CAM_OFFLINE_INTERVAL: number;

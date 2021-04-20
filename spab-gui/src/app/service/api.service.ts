@@ -116,12 +116,7 @@ class ApiService {
           obj: {}
         };
 
-        if (logGui.type === 'camera') {
-          spabLog.obj = SpabDataStruct.CameraData.decode(logGui.data);
-          spabLog.obj.buf = new Uint8Array(spabLog.obj.buf);
-        } else if (logGui.type === 'sensor') {
-          spabLog.obj = SpabDataStruct.SensorData.decode(logGui.data);
-        }
+        spabLog.obj = new Uint8Array(logGui.data);
 
         spabLog = this._addLog(logGui.clientId, spabLog);
 
