@@ -16,7 +16,7 @@ interface SpabLog {
   type: 'camera' | 'sensor',
   typeId: string,
   timestamp: number,
-  obj: any
+  data: Uint8Array
 }
 
 
@@ -113,10 +113,8 @@ class ApiService {
           timestamp: logGui.timestamp,
           type: logGui.type as 'camera' | 'sensor',
           typeId: logGui.typeId,
-          obj: {}
+          data: new Uint8Array(logGui.data)
         };
-
-        spabLog.obj = new Uint8Array(logGui.data);
 
         spabLog = this._addLog(logGui.clientId, spabLog);
 
@@ -194,7 +192,7 @@ class ApiService {
       ) {
         if (log.timestamp && log.timestamp > spabLog.timestamp) {
           spabLog.timestamp = log.timestamp;
-          spabLog.obj = log.obj;
+          spabLog.data = log.data;
           return spabLog;
         } else {
           return;
@@ -207,7 +205,7 @@ class ApiService {
         type: log.type,
         typeId: log.typeId,
         timestamp: log.timestamp!,
-        obj: log.obj
+        data: log.data
       };
       selectedClient.latestLogs.push(spabLog);
       return spabLog;

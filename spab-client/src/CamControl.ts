@@ -86,7 +86,7 @@ export class CamControl {
             let vfOptions: string[];
 
             if (this._imgInterval > 0) {
-                vfOptions = ['-vf', 'fps=1000/' + this._imgInterval];
+                vfOptions = ['-r', (1000 / this._imgInterval).toFixed(2)];
             } else {
                 vfOptions = ['-vframes', '1'];
             }
@@ -97,7 +97,7 @@ export class CamControl {
                     '-loglevel', 'quiet',
                     '-f', ...this._f,
                     ...vfOptions,
-                    '-q:v', '0',
+                    '-q:v', '12',
                     '-f', 'mjpeg', '-'
                 ],
                 {

@@ -20,10 +20,11 @@ export class MainController {
 
     private _socket: Socket;
     private _isPolling = false;
+    private _isPassthrough = false;
 
     private _syncTimer: NodeJS.Timeout | null = null;
 
-    private _apControl: ArduPilotControl | null = null;
+    private _apControl: ArduPilotControl;
 
     private _cameras: Camera[] = [];
     private _cameraTimer: NodeJS.Timeout | null = null;
@@ -39,11 +40,14 @@ export class MainController {
             ARDUPILOT_COM_BAUD
         );
         this._apControl.msgCallback = (msgType, msg) => {
-            this._handleNewCameraData(
+            this._handleNewSensorData(
                 msgType,
                 Buffer.from(JSON.stringify(msg))
             );
         };
+        this._apControl.dataCallback = (data) => {
+            this._handleNewRawData(data);
+        }
 
         // init cameras
         for (let camCfg of CAM_CFGS) {
@@ -114,6 +118,22 @@ export class MainController {
             this.isPolling = isPolling;
         });
 
+        this._socket.on('passthrough', (isPassthrough: boolean, ackResponse: any) => {
+            console.log('passthrough');
+
+            if (!(ackResponse instanceof Function)) {
+                return;
+            }
+
+            ackResponse(true);
+
+            this.isPassthrough = isPassthrough;
+        });
+
+        this._socket.on('rawData', (data: Buffer) => {
+            
+        });
+
         this._restartEventLoop();
     }
 
@@ -151,8 +171,18 @@ export class MainController {
                 }
             }
 
+            if (this._isPolling) {
+                this._apControl.msgInterval = CAM_ONLINE_INTERVAL;
+            } else {
+                this._apControl.msgInterval = CAM_OFFLINE_INTERVAL;
+            }
+
             this._restartEventLoop();
         }
+    }
+
+    set isPassthrough(isPassthrough: boolean) {
+        this._isPassthrough = isPassthrough;
     }
 
     private _checkOnline(): boolean {
@@ -160,6 +190,7 @@ export class MainController {
             return true;
         } else {
             this.isPolling = false;
+            this.isPassthrough = false;
             return false;
         }
     }
@@ -170,6 +201,12 @@ export class MainController {
 
     private _handleNewSensorData(snrName: string, snrData: Buffer) {
         this._handleNewData('sensor', snrName, snrData);
+    }
+
+    private _handleNewRawData(data: Buffer) {
+        if (this._isPassthrough) {
+            this._socket.emit('rawData', data);
+        }
     }
 
     private _handleNewData(type: 'camera' | 'sensor', typeId: string, data: Buffer) {
@@ -221,8 +258,7 @@ export class MainController {
             _timeout = SNR_OFFLINE_INTERVAL;
         }
 
-        //TODO:
-
+        //TODO: Other sensor controls
 
         this._sensorTimer = setTimeout(() => {
             this._sensorLoop();

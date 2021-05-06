@@ -19,6 +19,23 @@
                 </div>
                 <canvas class="camera-canvas" [attr.cam]="name"></canvas>
             </div>
+
+            <div #clientSensorData *ngFor="let sensorData of sensorDataMap | keyvalue">
+                {{sensorData.key}} - {{sensorData.value._ts | date:'hh:mm:ss dd/MM/yyyy'}}
+                <table>
+                    <tr *ngFor="let item of sensorData.value | keyvalue">
+                        <ng-template [ngIf]="item.key !== '_ts'">
+                            <td>
+                                {{item.key}}
+                            </td>
+                            <td>
+                                {{item.value}}
+                            </td>
+                        </ng-template>
+                    </tr>
+                </table>
+            </div>
+
         </div>
     </div>
     <div content>

@@ -7,6 +7,7 @@ import * as Serialport from 'serialport';
 import { CommandLong } from './Mavlink2MsgRegistry/ArduPilot/messages/command-long';
 import { MavComponent } from './Mavlink2MsgRegistry/ArduPilot/enums/mav-component';
 import { MavCmd } from './Mavlink2MsgRegistry/ArduPilot/enums/mav-cmd';
+import { clear } from 'console';
 
 const GLOBAL_POSITION_INT = 33;
 
@@ -18,15 +19,20 @@ interface Msg {
 export class ArduPilotControl {
 
     private _msgCallback: ((msgType: string, msg: Object) => void) | undefined;
+    private _dataCallback: ((data: Buffer) => void) | undefined;
+
     private _msgInterval = -1;
     private _msgTimer: NodeJS.Timeout | undefined;
     private _msgMap = new Map<string, Msg>();
 
     private _apMavlink: MAVLinkModule | undefined;
+    private _apMavlinkLastTimestamp = 0;
 
     private _sp: Serialport | undefined;
     private _comName = '';
     private _baudRate = 57600;
+
+    private _apMavlinkTimer: NodeJS.Timeout | undefined;
 
     private _copyFields(obj: any, fields: string[]) {
         let newObj: any = {};
@@ -36,6 +42,20 @@ export class ArduPilotControl {
         }
 
         return newObj;
+    }
+
+    private _notifyArduPilot() {
+        if (this._sp && this._sp.isOpen) {
+            let protocolVer = new CommandLong(
+                MavComponent.MAV_COMP_ID_AUTOPILOT1, 
+                MavComponent.MAV_COMP_ID_USER1
+            );
+            protocolVer.target_system = MavComponent.MAV_COMP_ID_AUTOPILOT1;
+            protocolVer.target_component = MavComponent.MAV_COMP_ID_AUTOPILOT1;
+            protocolVer.command = MavCmd.MAV_CMD_REQUEST_MESSAGE;
+            protocolVer.confirmation = 0;
+            this._sp.write(this._apMavlink!.pack([protocolVer]));
+        }
     }
 
     private _initComPort() {
@@ -58,71 +78,39 @@ export class ArduPilotControl {
                 );
 
                 this._apMavlink.upgradeLink();
-
-                let protocolVer = new CommandLong(
-                    MavComponent.MAV_COMP_ID_AUTOPILOT1, 
-                    MavComponent.MAV_COMP_ID_USER1
-                );
-                protocolVer.target_system = MavComponent.MAV_COMP_ID_AUTOPILOT1;
-                protocolVer.target_component = MavComponent.MAV_COMP_ID_AUTOPILOT1;
-                protocolVer.command = MavCmd.MAV_CMD_REQUEST_MESSAGE;
-                protocolVer.confirmation = 0;
-                this._sp!.write(this._apMavlink.pack([protocolVer]));
+                this._notifyArduPilot();
 
                 this._apMavlink.on('message', (message: MAVLinkMessage) => {  
-                    // event listener for all messages  
-                    if (
-                        message._system_id === MavComponent.MAV_COMP_ID_AUTOPILOT1 &&
-                        message._component_id === MavComponent.MAV_COMP_ID_AUTOPILOT1
-                    ) {
-                        if (message._message_name === 'BATTERY_STATUS') {
-                            this._msgMap.set(
-                                message._message_name,
-                                this._copyFields(message, [
-                                    'voltages'
-                                ])
-                            );
-                        } else if (message._message_name === 'GLOBAL_POSITION_INT') {
-                            this._msgMap.set(
-                                message._message_name,
-                                this._copyFields(message, [
-                                    'lat',
-                                    'lon',
-                                    'alt',
-                                    'relative_alt',
-                                    'vx',
-                                    'vy',
-                                    'vz',
-                                    'hdg'
-                                ])
-                            );
-                        } else if (message._message_name === 'HEARTBEAT') {
-                            this._msgMap.set(
-                                message._message_name,
-                                this._copyFields(message, [
-                                    'custom_mode',
-                                    'type',
-                                    'autopilot',
-                                    'base_mode',
-                                    'system_status'
-                                ])
-                            );
-                        } else if (message._message_name === 'RAW_IMU') {
-                            this._msgMap.set(
-                                message._message_name,
-                                this._copyFields(message, [
-                                    'xacc',
-                                    'yacc',
-                                    'zacc',
-                                    'xgyro',
-                                    'ygyro',
-                                    'zgyro',
-                                    'xmag',
-                                    'ymag',
-                                    'zmag',
-                                    'temperature'
-                                ])
-                            );
+                    // event listener for sensor data
+
+                    if (!this._msgMap.has(message._message_name)) {
+                        if (
+                            message._system_id === MavComponent.MAV_COMP_ID_AUTOPILOT1 &&
+                            message._component_id === MavComponent.MAV_COMP_ID_AUTOPILOT1
+                        ) {
+                            if (message._message_name === 'BATTERY_STATUS') {
+                                this._msgMap.set(
+                                    message._message_name,
+                                    this._copyFields(message, [
+                                        'voltages'
+                                    ])
+                                );
+                            } else if (message._message_name === 'GLOBAL_POSITION_INT') {
+                                this._msgMap.set(
+                                    message._message_name,
+                                    this._copyFields(message, [
+                                        'lat',
+                                        'lon',
+                                        'alt',
+                                        'relative_alt',
+                                        'vx',
+                                        'vy',
+                                        'vz',
+                                        'hdg'
+                                    ])
+                                );
+                            }
+                            this._apMavlinkLastTimestamp = (new Date()).getTime();
                         }
                     }
                 });  
@@ -130,6 +118,10 @@ export class ArduPilotControl {
                 this._sp!.on('data', async (data: Buffer) => {
                     try {
                         await this._apMavlink!.parse(data);
+
+                        if (this._dataCallback) {
+                            this._dataCallback(data);
+                        }
                     } catch (e) { }
                 });
             });
@@ -152,9 +144,19 @@ export class ArduPilotControl {
             }
         }
 
+        if (this._apMavlinkLastTimestamp < (new Date()).getTime() - 1000) {
+            this._notifyArduPilot();
+        }
+
         this._msgTimer = setTimeout(() => {
             this._restartMsgTimer();
         }, this._msgInterval);
+    }
+
+    public sendRawData(data: Buffer) {
+        if (this._sp && this._sp.isOpen) {
+            this._sp.write(data);
+        }
     }
 
     constructor (
@@ -170,6 +172,10 @@ export class ArduPilotControl {
     set msgCallback(msgCallback: (msgType: string, obj: Object) => void) {
         this._msgCallback = msgCallback;
         this._restartMsgTimer();
+    }
+
+    set dataCallback(dataCallback: (data: Buffer) => void) {
+        this._dataCallback = dataCallback;
     }
 
     set msgInterval(msgInterval: number) {

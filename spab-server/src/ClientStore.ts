@@ -3,15 +3,14 @@ import { SpabDataStruct } from "./../../spab-data-struct/SpabDataStruct";
 
 
 interface DbLog extends SpabDataStruct.ILogClient {
-    clientId?: string, 
-    obj?: any
+    clientId?: string
 }
 
 interface SpabLog  {
     type: 'camera' | 'sensor',
     typeId: string,
     timestamp: number,
-    obj: any
+    data: any
 }
 
 interface SpabClient {
@@ -105,7 +104,7 @@ class ClientStore {
                         "timestamp",
                         "type",
                         "typeId",
-                        "obj"
+                        "data"
                     FROM logs
                     WHERE
                         "clientId"=$1 AND
@@ -117,14 +116,11 @@ class ClientStore {
 
                 for (let log of latestLogs) {
                     try {
-                        if (type === 'camera') {
-                            log.obj = Buffer.from(log.obj, 'base64');
-                        }
                         client.latestLogs.push({
                             timestamp: log.timestamp,
                             type: log.type,
                             typeId: log.typeId,
-                            obj: Buffer.from(log.obj, 'base64')
+                            data: Buffer.from(log.data)
                         });
                     } catch (e) {
 
@@ -239,14 +235,14 @@ class ClientStore {
             let logFreq = 60 * 1000;
 
             if (logClient.type === 'camera') {
-                dbLog.obj = dbLog.data!;
                 logFreq = 60 * 1000;
             } else if (logClient.type === 'sensor') {
-                dbLog.obj = dbLog.data!;
                 logFreq = 15 * 1000;
             }
 
-            delete dbLog.data;
+            if (!logClient.data) {
+                logClient.data = new Uint8Array();
+            }
 
 
             // forcefully remove deleted properties
@@ -267,14 +263,16 @@ class ClientStore {
 
             if (dbLog.timestamp! - lastLogTimestamp > logFreq) {
                 await this._pool!.query(
-                    `INSERT INTO logs ("clientId", "timestamp", "logId", "type", "typeId", "obj") VALUES ($1, $2, $3, $4, $5, $6)`,
-                    [clientId, dbLog.timestamp, dbLog.logId, dbLog.type, dbLog.typeId, Buffer.from(dbLog.obj).toString('base64')]
+                    `INSERT INTO logs ("clientId", "timestamp", "logId", "type", "typeId", "data") VALUES ($1, $2, $3, $4, $5, $6)`,
+                    [clientId, dbLog.timestamp, dbLog.logId, dbLog.type, dbLog.typeId, Buffer.from(dbLog.data!)]
                 );
             }
 
             return this.addLog(logClient);
 
-        } catch (e) { }
+        } catch (e) {
+            console.log(e);
+        }
 
         return undefined;
     }
@@ -291,7 +289,7 @@ class ClientStore {
             data: Buffer.alloc(0)
         }
 
-        logGui.data = spabLog.obj;
+        logGui.data = spabLog.data;
         return Buffer.from(SpabDataStruct.LogGui.encode(logGui).finish());
     }
 
@@ -319,7 +317,7 @@ class ClientStore {
             ) {
                 if (log.timestamp && log.timestamp > spabLog.timestamp) {
                     spabLog.timestamp = log.timestamp;
-                    spabLog.obj = log.obj;
+                    spabLog.data = log.data;
                     return spabLog;
                 } else {
                     return;
@@ -333,7 +331,7 @@ class ClientStore {
                 type: log.type,
                 typeId: log.typeId!,
                 timestamp: log.timestamp!,
-                obj: log.obj
+                data: log.data
             }
             spabClient.latestLogs.push(spabLog);
             return spabLog;

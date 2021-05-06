@@ -249,7 +249,7 @@ async function rebuildDbStructure(pool: Pool) {
             "logId" bigint,
             "type" text NOT NULL,
             "typeId" text NOT NULL,
-            "obj" json NOT NULL,
+            "data" bytea NOT NULL,
             FOREIGN KEY ("clientId") REFERENCES clients("_id") ON DELETE CASCADE
         );`
     );

@@ -18,6 +18,7 @@ import olLayerTile from 'ol/layer/Tile';
 
 
 import Point from 'ol/geom/Point';
+import { fromLonLat } from 'ol/proj';
 
 import olSourceVector from 'ol/source/Vector';
 import {
@@ -36,6 +37,7 @@ import {
 } from 'ol/control';
 import { ApiService, SpabLog } from 'src/app/service/api.service';
 import { UtilsService } from 'src/app/service/utils.service';
+import Geometry from 'ol/geom/Geometry';
 
 
 
@@ -52,6 +54,9 @@ export class MainComponent implements OnInit, OnDestroy  {
 
 
   private _mainMap: olMap;
+  private _clientFeature: olFeature<Geometry>;
+  private _initZoomSet = false;
+  private _mainMapView: olView;
 
   clientSelectItems: {
     selected: boolean,
@@ -60,6 +65,7 @@ export class MainComponent implements OnInit, OnDestroy  {
   }[] = [];
 
   cameraNames = new Set<string>();
+  sensorDataMap = new Map<string, any>();
 
   private _clientSelectValue: string = '';
 
@@ -73,6 +79,7 @@ export class MainComponent implements OnInit, OnDestroy  {
     setTimeout(async () => {
       this.removeCamResizeListeners();
       this.cameraNames = new Set<string>();
+      this.sensorDataMap = new Map<string, any>();
 
       await this.apiService.unsubscribeAll();
 
@@ -100,14 +107,14 @@ export class MainComponent implements OnInit, OnDestroy  {
     let initPosSet = false;
     let currentPos: Coordinate | undefined = [0, 0];
 
-    let mapView = new olView({
+    this._mainMapView = new olView({
       center: [0, 0],
       zoom: 1,
     });
 
     // current position marker
-    let mapPosFeature = new olFeature();
-    mapPosFeature.setStyle(
+    this._clientFeature = new olFeature();
+    this._clientFeature.setStyle(
       new olStyle({
         image: new olStyleCircle({
           radius: 10,
@@ -122,34 +129,9 @@ export class MainComponent implements OnInit, OnDestroy  {
       })
     );
 
-    let mapGeolocation = new olGeolocation({
-      // enableHighAccuracy must be set to true to have the heading value.
-      tracking: true,
-      trackingOptions: {
-        enableHighAccuracy: true,
-      },
-      projection: mapView.getProjection()
-    });
-
-    mapGeolocation.on('change:position', function () {
-      currentPos = mapGeolocation.getPosition();
-      let geo = currentPos ? new Point(currentPos) : null;
-
-      if (geo) {
-        mapPosFeature.setGeometry(geo);
-
-        if (!initPosSet) {
-          mapView.fit(geo, {
-            maxZoom: 12
-          });
-          initPosSet = true;
-        }
-      }
-    });
-
     let mapMarkerLayer = new olLayerVector({
       source: new olSourceVector({
-        features: [mapPosFeature],
+        features: [this._clientFeature],
       })
     });
 
@@ -177,7 +159,7 @@ export class MainComponent implements OnInit, OnDestroy  {
         openSeaMapLayer,
         mapMarkerLayer
       ],
-      view: mapView
+      view: this._mainMapView
     });
   }
 
@@ -312,11 +294,28 @@ export class MainComponent implements OnInit, OnDestroy  {
             this.utilsService.imgToCanvas(camCanvas!, img);
           });
         }
-        img.src = URL.createObjectURL(new Blob([spabLog.obj], {type: 'image/jpg'}));
+        img.src = URL.createObjectURL(new Blob([spabLog.data], {type: 'image/jpg'}));
       }, 1);
     } else if (spabLog.type === 'sensor') {
-      console.log(spabLog);
-      console.log(new TextDecoder().decode(spabLog.obj));
+      try {
+        let dataJson = new TextDecoder().decode(spabLog.data);
+        let data = JSON.parse(dataJson);
+        data._ts = spabLog.timestamp;
+        this.sensorDataMap.set(spabLog.typeId, data);
+
+        if (spabLog.typeId === 'GLOBAL_POSITION_INT') {
+          let geo = new Point(fromLonLat([parseFloat(data.lon) / 1e7, parseFloat(data.lat) / 1e7]));
+
+          this._clientFeature.setGeometry(geo);
+
+          if (!this._initZoomSet) {
+            this._mainMapView.fit(geo, {
+              maxZoom: 12
+            });
+            this._initZoomSet = true;
+          }
+        }
+      } catch(e) { }
     }
   }
 }

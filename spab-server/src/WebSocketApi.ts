@@ -146,6 +146,7 @@ export class WebSocketApi {
         });
 
         socket.on('log', async (logClientEncoded, ackResponse) => {
+            console.log("log 1");
 
             if (ackResponse instanceof Function) {
                 ackResponse(true);
@@ -155,12 +156,15 @@ export class WebSocketApi {
                 return;
             }
 
+            console.log("log 2");
+
             let spabLog = await this._clientStore.addLogEncoded(
                 clientId,
                 logClientEncoded
             );
 
             if (spabLog) {
+                console.log("log 3");
                 await this._sendToGuiSubscriber(clientId, 'log', [
                     this._clientStore.getLogGui(clientId, spabLog)
                 ], false);
