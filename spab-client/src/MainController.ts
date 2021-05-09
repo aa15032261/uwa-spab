@@ -69,7 +69,7 @@ export class MainController {
 
         // init socket io
         this._socket = io(SERVER_URL, {
-            path: CLIENT_API_PATH,
+            path: CLIENT_WSAPI_PATH,
             rejectUnauthorized: false,
             autoConnect: true,
             reconnectionDelayMax: 10000,
@@ -131,7 +131,7 @@ export class MainController {
         });
 
         this._socket.on('rawData', (data: Buffer) => {
-            
+            this._apControl.sendRawData(data);
         });
 
         this._restartEventLoop();

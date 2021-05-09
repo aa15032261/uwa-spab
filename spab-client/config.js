@@ -5,7 +5,7 @@ module.exports = function() {
     this.LOG_DB_PATH = path.resolve(__dirname, './log_db');
 
     this.SERVER_URL = 'wss://therevproject.com';
-    this.CLIENT_API_PATH = '/spab_2021s1/api/client_ws/';
+    this.CLIENT_WSAPI_PATH = '/spab_2021s1/api/client_ws/';
     this.CLIENT_API_TOKEN = 'af1086837a375fca484293341654f0008ca7736cc48525820f63ae8485e16ff6';
     this.CLIENT_TWO_FACTOR = {
         type: 'totp',

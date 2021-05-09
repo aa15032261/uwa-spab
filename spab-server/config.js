@@ -10,6 +10,7 @@ module.exports = function() {
     this.DB_USER = 'therevpr_spab';
     this.DB_PASSWORD = 'therevpr_spab';
 
+    this.PASSTHROUGH_WSAPI_PATH = this.BASE_URL + '/api/passthrough_ws/';
     this.CLIENT_WSAPI_PATH = this.BASE_URL + '/api/client_ws/';
     this.GUI_WSAPI_PATH = this.BASE_URL + '/api/gui_ws/';
 

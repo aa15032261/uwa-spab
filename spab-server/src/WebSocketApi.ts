@@ -18,10 +18,17 @@ interface GuiStatus {
     }
 }
 
+interface PassthroughStatus {
+    passthroughStatus?: {
+        clientId: string
+    }
+}
+
 export class WebSocketApi {
 
     private _pool?: Pool;
 
+    private _passthroughIo: Server;
     private _clientIo: Server;
     private _guiIo: Server;
 
@@ -35,12 +42,38 @@ export class WebSocketApi {
 
         totp.options = { window: [-1, 1] };
         this._clientStore = new ClientStore();
-        
+
+        this._passthroughIo = new Server(httpServer, {
+            path: PASSTHROUGH_WSAPI_PATH
+        });
         this._clientIo = new Server(httpServer, {
             path: CLIENT_WSAPI_PATH
         });
         this._guiIo = new Server(httpServer, {
             path: GUI_WSAPI_PATH
+        });
+
+        this._passthroughIo.on('connection', async (socket: Socket) => {
+            try {
+                if (!this._pool) {
+                    throw 'db not ready';
+                }
+
+                if (!socket.handshake.auth) {
+                    throw 'invalid request';
+                }
+
+                let socketAuthObj = socket.handshake.auth as {token: string, twoFactor: string};
+
+                let clientId = await this._clientAuth(socketAuthObj.token, socketAuthObj.twoFactor);
+                if (!clientId) {
+                    throw 'authentication failed';
+                }
+
+                await this._setupPassthroughSocket(clientId, socket);
+            } catch (e) {
+                socket.disconnect(true);
+            }
         });
     
         this._clientIo.on('connection', async (socket: Socket) => {
@@ -132,9 +165,14 @@ export class WebSocketApi {
             // notify online
             this._broadcastToGui('online', [clientId], true);
 
-            let count = await this._getClientSubscriberCount(clientId);
-            if (count > 0) {
+            let guiCount = await this._getClientGuiCount(clientId);
+            if (guiCount > 0) {
                 this._sendMsgAck(socket, 'polling', [true], true);
+            }
+
+            let passthroughcount = await this._getClientPassthroughCount(clientId);
+            if (passthroughcount > 0) {
+                this._sendMsgAck(socket, 'passthrough', [true], true);
             }
         }
 
@@ -146,8 +184,6 @@ export class WebSocketApi {
         });
 
         socket.on('log', async (logClientEncoded, ackResponse) => {
-            console.log("log 1");
-
             if (ackResponse instanceof Function) {
                 ackResponse(true);
             }
@@ -155,8 +191,6 @@ export class WebSocketApi {
             if (!logClientEncoded) {
                 return;
             }
-
-            console.log("log 2");
 
             let spabLog = await this._clientStore.addLogEncoded(
                 clientId,
@@ -168,6 +202,27 @@ export class WebSocketApi {
                 await this._sendToGuiSubscriber(clientId, 'log', [
                     this._clientStore.getLogGui(clientId, spabLog)
                 ], false);
+            }
+        });
+
+        socket.on('rawData', async (data: Buffer) => {
+            await this._sendToPassthroughSubscriber(clientId, 'rawData', [data], false);
+        });
+    }
+
+    private _setupPassthroughSocket(clientId: string, socket: Socket & PassthroughStatus) {
+        socket.passthroughStatus = {
+            clientId: clientId
+        }
+
+        socket.on('rawData', (data: Buffer) => {
+            this._sendToClient(clientId, 'rawData', [data], false);
+        });
+
+        socket.on('disconnect', async (err: any) => {
+            let count = await this._getClientPassthroughCount(clientId);
+            if (count === 1) {
+                await this._sendMsgAck(socket, 'passthrough', [false], true);
             }
         });
     }
@@ -238,16 +293,16 @@ export class WebSocketApi {
 
             ackResponse(true);
 
-            await this._handleUnsubscribeAll(socket);
+            await this._handleGuiUnsubscribeAll(socket);
         });
 
 
         socket.on('disconnect', async (err: any) => {
-            await this._handleUnsubscribeAll(socket);
+            await this._handleGuiUnsubscribeAll(socket);
         });
     }
 
-    private async _handleUnsubscribeAll(
+    private async _handleGuiUnsubscribeAll(
         socket: Socket & LoginStatus & GuiStatus
     ) {
         if (socket.guiStatus) {
@@ -276,7 +331,7 @@ export class WebSocketApi {
     }
 
 
-    private async _getClientSubscriberCount(clientId: string): Promise<number> {
+    private async _getClientGuiCount(clientId: string): Promise<number> {
         let count = 0;
         for (let [socketId, socket] of await this._guiIo.sockets.sockets) {
             try {
@@ -292,6 +347,23 @@ export class WebSocketApi {
         return count;
     }
 
+    private async _getClientPassthroughCount(clientId: string): Promise<number> {
+        let count = 0;
+
+        for (let [socketId, socket] of await this._passthroughIo.sockets.sockets) {
+            try {
+                let passthroughSocket = socket as Socket & PassthroughStatus;
+
+                if (passthroughSocket.passthroughStatus!.clientId === clientId) {
+                    count++;
+                }
+
+            } catch (e) {}
+        }
+
+        return count;
+    }
+
     private async _setClientPolling (
         clientId: string,
         isPolling: boolean
@@ -301,7 +373,7 @@ export class WebSocketApi {
             return;
         }
 
-        let count = await this._getClientSubscriberCount(clientId);
+        let count = await this._getClientGuiCount(clientId);
 
         if (
             (count === 1 && isPolling === true) ||
@@ -343,6 +415,22 @@ export class WebSocketApi {
                     if (guiSocket.guiStatus!.subscribedClientIds.has(clientId)) {
                         this._sendMsgAck(socket, evt, val, ack);
                     }
+                }
+            } catch (e) {}
+        }
+    }
+
+    private async _sendToPassthroughSubscriber(
+        clientId: string,
+        evt: string, 
+        val: any,
+        ack: boolean
+    ) {
+        for (let [socketId, socket] of await this._passthroughIo.sockets.sockets) {
+            try {
+                let passthroughSocket = socket as Socket & PassthroughStatus;
+                if (passthroughSocket.passthroughStatus?.clientId === clientId) {
+                    this._sendMsgAck(socket, evt, val, ack);
                 }
             } catch (e) {}
         }

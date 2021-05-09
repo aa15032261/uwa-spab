@@ -109,10 +109,11 @@ class ClientStore {
                     WHERE
                         "clientId"=$1 AND
                         "type"=$2
-                    ORDER BY "typeId", "timestamp" DESC
-                    LIMIT 1;`,
+                    ORDER BY "typeId", "timestamp" DESC;`,
                     [clientId, type]
                 )).rows;
+
+                console.log(latestLogs);
 
                 for (let log of latestLogs) {
                     try {
@@ -237,7 +238,7 @@ class ClientStore {
             if (logClient.type === 'camera') {
                 logFreq = 60 * 1000;
             } else if (logClient.type === 'sensor') {
-                logFreq = 15 * 1000;
+                logFreq = 30 * 1000;
             }
 
             if (!logClient.data) {

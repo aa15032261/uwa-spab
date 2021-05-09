@@ -3,7 +3,7 @@ declare global {
     var LOG_DB_PATH: string;
 
     var SERVER_URL: string;
-    var CLIENT_API_PATH: string;
+    var CLIENT_WSAPI_PATH: string;
     var CLIENT_API_TOKEN: string;
     var CLIENT_TWO_FACTOR: {type: string, secret: string};
 

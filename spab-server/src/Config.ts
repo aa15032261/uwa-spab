@@ -10,6 +10,7 @@ declare global {
     var DB_USER: string;
     var DB_PASSWORD: string;
 
+    var PASSTHROUGH_WSAPI_PATH: string;
     var CLIENT_WSAPI_PATH: string;
     var GUI_WSAPI_PATH: string;
 
