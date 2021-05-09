@@ -310,6 +310,7 @@ $root.SpabDataStruct = (function() {
          * @memberof SpabDataStruct
          * @interface ILogGui
          * @property {string|null} [clientId] LogGui clientId
+         * @property {number|null} [logStartTimestamp] LogGui logStartTimestamp
          * @property {number|null} [timestamp] LogGui timestamp
          * @property {string|null} [type] LogGui type
          * @property {string|null} [typeId] LogGui typeId
@@ -338,6 +339,14 @@ $root.SpabDataStruct = (function() {
          * @instance
          */
         LogGui.prototype.clientId = "";
+
+        /**
+         * LogGui logStartTimestamp.
+         * @member {number} logStartTimestamp
+         * @memberof SpabDataStruct.LogGui
+         * @instance
+         */
+        LogGui.prototype.logStartTimestamp = 0;
 
         /**
          * LogGui timestamp.
@@ -397,14 +406,16 @@ $root.SpabDataStruct = (function() {
                 writer = $Writer.create();
             if (message.clientId != null && Object.hasOwnProperty.call(message, "clientId"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.clientId);
+            if (message.logStartTimestamp != null && Object.hasOwnProperty.call(message, "logStartTimestamp"))
+                writer.uint32(/* id 2, wireType 1 =*/17).double(message.logStartTimestamp);
             if (message.timestamp != null && Object.hasOwnProperty.call(message, "timestamp"))
-                writer.uint32(/* id 2, wireType 1 =*/17).double(message.timestamp);
+                writer.uint32(/* id 3, wireType 1 =*/25).double(message.timestamp);
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
-                writer.uint32(/* id 3, wireType 2 =*/26).string(message.type);
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.type);
             if (message.typeId != null && Object.hasOwnProperty.call(message, "typeId"))
-                writer.uint32(/* id 4, wireType 2 =*/34).string(message.typeId);
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.typeId);
             if (message.data != null && Object.hasOwnProperty.call(message, "data"))
-                writer.uint32(/* id 5, wireType 2 =*/42).bytes(message.data);
+                writer.uint32(/* id 6, wireType 2 =*/50).bytes(message.data);
             return writer;
         };
 
@@ -443,15 +454,18 @@ $root.SpabDataStruct = (function() {
                     message.clientId = reader.string();
                     break;
                 case 2:
-                    message.timestamp = reader.double();
+                    message.logStartTimestamp = reader.double();
                     break;
                 case 3:
-                    message.type = reader.string();
+                    message.timestamp = reader.double();
                     break;
                 case 4:
-                    message.typeId = reader.string();
+                    message.type = reader.string();
                     break;
                 case 5:
+                    message.typeId = reader.string();
+                    break;
+                case 6:
                     message.data = reader.bytes();
                     break;
                 default:
@@ -492,6 +506,9 @@ $root.SpabDataStruct = (function() {
             if (message.clientId != null && message.hasOwnProperty("clientId"))
                 if (!$util.isString(message.clientId))
                     return "clientId: string expected";
+            if (message.logStartTimestamp != null && message.hasOwnProperty("logStartTimestamp"))
+                if (typeof message.logStartTimestamp !== "number")
+                    return "logStartTimestamp: number expected";
             if (message.timestamp != null && message.hasOwnProperty("timestamp"))
                 if (typeof message.timestamp !== "number")
                     return "timestamp: number expected";
@@ -521,6 +538,8 @@ $root.SpabDataStruct = (function() {
             var message = new $root.SpabDataStruct.LogGui();
             if (object.clientId != null)
                 message.clientId = String(object.clientId);
+            if (object.logStartTimestamp != null)
+                message.logStartTimestamp = Number(object.logStartTimestamp);
             if (object.timestamp != null)
                 message.timestamp = Number(object.timestamp);
             if (object.type != null)
@@ -550,6 +569,7 @@ $root.SpabDataStruct = (function() {
             var object = {};
             if (options.defaults) {
                 object.clientId = "";
+                object.logStartTimestamp = 0;
                 object.timestamp = 0;
                 object.type = "";
                 object.typeId = "";
@@ -563,6 +583,8 @@ $root.SpabDataStruct = (function() {
             }
             if (message.clientId != null && message.hasOwnProperty("clientId"))
                 object.clientId = message.clientId;
+            if (message.logStartTimestamp != null && message.hasOwnProperty("logStartTimestamp"))
+                object.logStartTimestamp = options.json && !isFinite(message.logStartTimestamp) ? String(message.logStartTimestamp) : message.logStartTimestamp;
             if (message.timestamp != null && message.hasOwnProperty("timestamp"))
                 object.timestamp = options.json && !isFinite(message.timestamp) ? String(message.timestamp) : message.timestamp;
             if (message.type != null && message.hasOwnProperty("type"))

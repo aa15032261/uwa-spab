@@ -198,7 +198,6 @@ export class WebSocketApi {
             );
 
             if (spabLog) {
-                console.log("log 3");
                 await this._sendToGuiSubscriber(clientId, 'log', [
                     this._clientStore.getLogGui(clientId, spabLog)
                 ], false);
@@ -213,7 +212,7 @@ export class WebSocketApi {
     private _setupPassthroughSocket(clientId: string, socket: Socket & PassthroughStatus) {
         socket.passthroughStatus = {
             clientId: clientId
-        }
+        };
 
         socket.on('rawData', (data: Buffer) => {
             this._sendToClient(clientId, 'rawData', [data], false);
@@ -225,6 +224,10 @@ export class WebSocketApi {
                 await this._sendMsgAck(socket, 'passthrough', [false], true);
             }
         });
+
+        if (this._clientStore.isClientExist(clientId)) {
+            this._sendToClient(clientId, 'passthrough', [true], true);
+        }
     }
 
     private _setupGuiSocket(socket: Socket & LoginStatus & GuiStatus) {
@@ -242,8 +245,14 @@ export class WebSocketApi {
             }
         });
 
-        socket.on('log', async (clientId: string) => {
-            await this._sendLatestLog(clientId, socket);
+        socket.on('log', async (clientId: string, timestamp: number, ackResponse) => {
+            if (!(ackResponse instanceof Function)) {
+                return;
+            }
+
+            ackResponse(true);
+
+            await this._sendLogs(clientId, timestamp, socket);
         });
 
         socket.on('subscribe', async (clientId: string, ackResponse) => {
@@ -256,7 +265,7 @@ export class WebSocketApi {
             if (this._clientStore.isClientExist(clientId)) {
                 socket.guiStatus!.subscribedClientIds.add(clientId);
                 await this._setClientPolling(clientId, true);
-                await this._sendLatestLog(clientId, socket);
+                await this._sendLogs(clientId, -1, socket);
             }
         });
 
@@ -313,8 +322,9 @@ export class WebSocketApi {
         }
     }
 
-    private async _sendLatestLog(
+    private async _sendLogs(
         clientId: string,
+        timestamp: number,
         socket: Socket
     ) {
         let client = this._clientStore.getClient(clientId);
@@ -323,7 +333,13 @@ export class WebSocketApi {
             return;
         }
 
-        for (let spabLog of client.latestLogs) {
+        let logs = client.latestLogs;
+
+        if (timestamp > 0) {
+            logs = await this._clientStore.getLogs(clientId, timestamp);
+        }
+
+        for (let spabLog of logs) {
             this._sendMsgAck(socket, 'log', [
                 this._clientStore.getLogGui(clientId, spabLog)
             ], true);

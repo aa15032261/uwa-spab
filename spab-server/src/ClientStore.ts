@@ -17,13 +17,15 @@ interface SpabClient {
     clientId: string,
     name: string,
     socketIds: Set<string>,
+    logStartTimestamp: number,
     latestLogs: SpabLog[]
 }
 
 interface SpabClientSummary {
     clientId: string, 
     name: string, 
-    connected: boolean
+    connected: boolean,
+    logStartTimestamp: number
 }
 
 class ClientStore {
@@ -93,44 +95,69 @@ class ClientStore {
                 clientId: clientId,
                 name: name,
                 socketIds: new Set<string>(),
+                logStartTimestamp: 0,
                 latestLogs: []
             };
 
-            let types = ['sensor', 'camera'];
+            let logStartTimestampRes = (await this._pool!.query(
+                `SELECT 
+                    MIN(timestamp) AS timestamp 
+                FROM logs 
+                WHERE
+                "clientId"=$1;`,
+                [clientId]
+            )).rows;
 
-            for (let type of types) {
-                let latestLogs = (await this._pool!.query(
-                    `SELECT DISTINCT ON ("typeId")
-                        "timestamp",
-                        "type",
-                        "typeId",
-                        "data"
-                    FROM logs
-                    WHERE
-                        "clientId"=$1 AND
-                        "type"=$2
-                    ORDER BY "typeId", "timestamp" DESC;`,
-                    [clientId, type]
-                )).rows;
-
-                console.log(latestLogs);
-
-                for (let log of latestLogs) {
-                    try {
-                        client.latestLogs.push({
-                            timestamp: log.timestamp,
-                            type: log.type,
-                            typeId: log.typeId,
-                            data: Buffer.from(log.data)
-                        });
-                    } catch (e) {
-
-                    }
-                }
+            if (logStartTimestampRes) {
+                client.logStartTimestamp = logStartTimestampRes[0].timestamp;
             }
 
+            let latestLogs = await this.getLogs(clientId, -1);
+            client.latestLogs = latestLogs;
             this._clientStore.set(clientId, client);
         }
+    }
+
+    public async getLogs(clientId: string, timestamp: number): Promise<SpabLog[]> {
+        let logs: SpabLog[] = [];
+
+        if (!timestamp || timestamp < 0) {
+            timestamp = Number.MAX_SAFE_INTEGER;
+        }
+
+        let types = ['sensor', 'camera'];
+
+        for (let type of types) {
+            let latestLogs = (await this._pool!.query(
+                `SELECT DISTINCT ON ("typeId")
+                    "timestamp",
+                    "type",
+                    "typeId",
+                    "data"
+                FROM logs
+                WHERE
+                    "clientId"=$1 AND
+                    "type"=$2 AND
+                    "timestamp" < $3
+                ORDER BY "typeId", "timestamp" DESC;`,
+                [clientId, type, timestamp]
+            )).rows;
+
+            for (let log of latestLogs) {
+                try {
+                    logs.push({
+                        timestamp: log.timestamp,
+                        type: log.type,
+                        typeId: log.typeId,
+                        data: Buffer.from(log.data)
+                    });
+                } catch (e) {
+
+                }
+            }
+        }
+
+        return logs;
     }
 
     public addClientSocketId(clientId: string, socketId: string): boolean {
@@ -160,7 +187,8 @@ class ClientStore {
             clientList.push({
                 clientId: clientId,
                 name: client.name,
-                connected: client.socketIds.size > 0
+                connected: client.socketIds.size > 0,
+                logStartTimestamp: client.logStartTimestamp
             })
         }
 
@@ -210,7 +238,7 @@ class ClientStore {
                 // cached data
 
                 // invalid timestamp
-                if (logClient.timestamp! > (new Date()).getTime()) {
+                if (logClient.timestamp! > (new Date()).getTime() + 5 * 60 * 1000) {
                     return;
                 }
 
@@ -250,7 +278,7 @@ class ClientStore {
             dbLog = {...dbLog};
 
             let lastLogTimestamp = 0;
-            if (!(logClient.logId)) {
+            if (!logClient.logId) {
                 // find last log's timestamp
                 let latestLog = (await this._pool!.query(
                     `SELECT MAX("timestamp") as "timestamp" FROM logs WHERE "clientId"=$1 AND "type"=$2 AND "typeId"=$3 AND "logId" IS NULL`,
@@ -269,7 +297,7 @@ class ClientStore {
                 );
             }
 
-            return this.addLog(logClient);
+            return this._updateLatestLog(logClient);
 
         } catch (e) {
             console.log(e);
@@ -284,17 +312,23 @@ class ClientStore {
     ): Buffer {
         let logGui: SpabDataStruct.ILogGui = {
             clientId: clientId,
+            logStartTimestamp: -1,
             timestamp: spabLog.timestamp,
             type: spabLog.type,
             typeId: spabLog.typeId,
-            data: Buffer.alloc(0)
+            data: spabLog.data,
         }
 
-        logGui.data = spabLog.data;
+        let spabClient = this.getClient(clientId);
+
+        if (spabClient) {
+            logGui.logStartTimestamp = spabClient.logStartTimestamp;
+        }
+
         return Buffer.from(SpabDataStruct.LogGui.encode(logGui).finish());
     }
 
-    public addLog(
+    private _updateLatestLog(
         log: DbLog
     ): SpabLog | undefined {
 
@@ -308,6 +342,10 @@ class ClientStore {
 
         if (!spabClient) {
             return;
+        }
+
+        if (log.timestamp! < spabClient.logStartTimestamp) {
+            spabClient.logStartTimestamp = log.timestamp!;
         }
 
         // update existing log

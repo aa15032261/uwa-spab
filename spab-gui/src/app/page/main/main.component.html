@@ -12,30 +12,44 @@
                 </select>
             </div>
 
-            <div #clientCameras class="camera-container border" *ngFor="let name of cameraNames">
-                <div class="camera-name-bar">
-                    <span class="d-inline-block text-truncate camera-name">{{name}}</span>
-                    <span class="material-icons user-select-none camera-fs-btn" (click)="toggleCamFullscreen($event)">&#xe5d0;</span>
+            <div *ngIf="selectedClient">
+                <form>
+                    <div class="form-group form-group-sm">
+                        <label for="clientLogSlider">{{logSelectedTimestamp * 1000 | date:'hh:mm:ss dd/MM/yyyy'}}</label>
+                        <input #clientLogSlider id="clientLogSlider" type="range" [(ngModel)]="logSelectedTimestamp" [attr.min]="logStartTimestamp" [attr.max]="logEndTimestamp" step="1" class="form-control-range">
+                    </div>
+                </form>
+
+                <div #clientCameras class="camera-container border mb-3" *ngFor="let name of cameraNames">
+                    <div class="camera-name-bar">
+                        <span class="d-inline-block text-truncate camera-name">{{name}}</span>
+                        <span class="material-icons user-select-none camera-fs-btn" (click)="toggleCamFullscreen($event)">&#xe5d0;</span>
+                    </div>
+                    <canvas class="camera-canvas" [attr.cam]="name"></canvas>
                 </div>
-                <canvas class="camera-canvas" [attr.cam]="name"></canvas>
-            </div>
 
-            <div #clientSensorData *ngFor="let sensorData of sensorDataMap | keyvalue">
-                {{sensorData.key}} - {{sensorData.value._ts | date:'hh:mm:ss dd/MM/yyyy'}}
-                <table>
-                    <tr *ngFor="let item of sensorData.value | keyvalue">
-                        <ng-template [ngIf]="item.key !== '_ts'">
-                            <td>
-                                {{item.key}}
-                            </td>
-                            <td>
-                                {{item.value}}
-                            </td>
-                        </ng-template>
-                    </tr>
-                </table>
+                <div #clientSensorData *ngFor="let sensorData of sensorDataMap | keyvalue">
+                    <table class="table table-sm table-bordered table-striped">
+                        <thead class="thead-light">
+                            <tr>
+                                <th scope="col" colspan="2">
+                                    {{sensorData.key}}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr *ngFor="let item of sensorData.value | keyvalue">
+                                <th scope="row">
+                                    {{item.key}}
+                                </th>
+                                <td>
+                                    {{item.value}}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-
         </div>
     </div>
     <div content>

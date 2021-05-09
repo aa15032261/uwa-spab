@@ -1,5 +1,6 @@
 declare global {
     var DEV: boolean;
+    var LOCAL_PORT: number;
 
     var SERVER_URL: string;
     var PASSTHROUGH_WSAPI_PATH: string;

@@ -2,6 +2,7 @@ const path = require('path');
 
 module.exports = function() {
     this.DEV = true;
+    this.LOCAL_PORT = 5760;
 
     this.SERVER_URL = 'wss://therevproject.com';
     this.PASSTHROUGH_WSAPI_PATH = '/spab_2021s1/api/passthrough_ws/';

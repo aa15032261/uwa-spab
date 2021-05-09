@@ -10,6 +10,8 @@ interface SpabClientSummary {
   clientId: string,
   name: string,
   connected: boolean,
+  logStartTimestamp: number,
+  logEndTimestamp: number,
   latestLogs: SpabLog[]
 }
 interface SpabLog {
@@ -30,7 +32,7 @@ class ApiService {
   private _subscribedClientIds = new Set<string>();
 
   private _statustListeners = new Map<string, (online: boolean) => void>();
-  private _logListeners = new Map<string, (clientId: string, log: SpabLog) => void>();
+  private _logListeners = new Map<string, (clientId: string, log: SpabLog, latest: boolean) => void>();
   private _clientStatusListeners = new Map<string, (clientId: string, online: boolean) => void>();
 
   constructor(
@@ -116,11 +118,13 @@ class ApiService {
           data: new Uint8Array(logGui.data)
         };
 
-        spabLog = this._addLog(logGui.clientId, spabLog);
-
-        if (spabLog) {
-          this._notifyLogListeners(logGui.clientId, spabLog);
+        let latest = false;
+        if (this._updateLatestLog(logGui.clientId, spabLog)) {
+          latest = true;
         }
+
+        this._notifyLogListeners(logGui.clientId, spabLog, latest);
+
       } catch (err) {}
     });
   }
@@ -140,6 +144,7 @@ class ApiService {
 
     for (let client of this._clients) {
       client.latestLogs = [];
+      client.logEndTimestamp = client.logStartTimestamp;
 
       if (this._subscribedClientIds.has(client.clientId)) {
         newSubscribedClientIds.add(client.clientId);
@@ -167,22 +172,21 @@ class ApiService {
     }
   }
 
-  private _addLog(
+  private _updateLatestLog(
     clientId: string,
     log: SpabLog
   ): SpabLog | undefined {
 
-    let selectedClient: SpabClientSummary | undefined;
-
-    for (let client of this._clients) {
-      if (client.clientId === clientId) {
-        selectedClient = client;
-        break;
-      }
-    }
+    let selectedClient = this.getClient(clientId);
 
     if (!selectedClient) {
       return;
+    }
+
+    if (log.timestamp > selectedClient.logEndTimestamp) {
+      selectedClient.logEndTimestamp = log.timestamp!;
+    } else if (log.timestamp! < selectedClient.logStartTimestamp) {
+      selectedClient.logStartTimestamp = log.timestamp!;
     }
 
     for (let spabLog of selectedClient.latestLogs) {
@@ -258,22 +262,26 @@ class ApiService {
     }
   }
 
+  public async getLogs(clientId: string, timestamp: number) {
+    await this._sendMsgAck('log', [clientId, timestamp], true);
+  }
+
   public async unsubscribeAll() {
     this._subscribedClientIds = new Set<string>();
     await this._sendMsgAck('unsubscribeAll', [], true);
   }
 
-  private _notifyLogListeners(clientId: string, log: SpabLog) {
+  private _notifyLogListeners(clientId: string, log: SpabLog, latest: boolean) {
     for (let [id, cb] of this._logListeners) {
-      cb(clientId, log);
+      cb(clientId, log, latest);
     }
   }
-  public addLogListener(id: string, cb: (clientId: string, log: SpabLog) => void) {
+  public addLogListener(id: string, cb: (clientId: string, log: SpabLog, latest: boolean) => void) {
     this._logListeners.set(id, cb);
 
     for (let client of this._clients) {
       for (let log of client.latestLogs) {
-        cb(client.clientId, log);
+        cb(client.clientId, log, true);
       }
     }
   }

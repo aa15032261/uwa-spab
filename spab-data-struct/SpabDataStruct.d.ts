@@ -122,6 +122,9 @@ export namespace SpabDataStruct {
         /** LogGui clientId */
         clientId?: (string|null);
 
+        /** LogGui logStartTimestamp */
+        logStartTimestamp?: (number|null);
+
         /** LogGui timestamp */
         timestamp?: (number|null);
 
@@ -146,6 +149,9 @@ export namespace SpabDataStruct {
 
         /** LogGui clientId. */
         public clientId: string;
+
+        /** LogGui logStartTimestamp. */
+        public logStartTimestamp: number;
 
         /** LogGui timestamp. */
         public timestamp: number;

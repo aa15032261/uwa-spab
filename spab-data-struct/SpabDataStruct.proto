@@ -11,8 +11,9 @@ message LogClient {
 
 message LogGui {
     string clientId = 1;
-    double timestamp = 2;
-    string type = 3;
-    string typeId = 4;
-    bytes data = 5;
+    double logStartTimestamp = 2;
+    double timestamp = 3;
+    string type = 4;
+    string typeId = 5;
+    bytes data = 6;
 }

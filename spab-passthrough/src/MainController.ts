@@ -9,7 +9,7 @@ import * as net from 'net';
 export class MainController {
 
     private _socket: Socket;
-    private _localSocket?: net.Socket;
+    private _localSockets = new Set<net.Socket>();
 
     constructor() {
         // init socket io
@@ -33,15 +33,22 @@ export class MainController {
             }
         });
 
-        net.createServer((socket) => {
-            this._localSocket = socket;
+        let server = net.createServer((socket) => {
+            this._localSockets.add(socket);
 
             socket.on('data', (data: Buffer) => {
                 if (this._checkOnline()) {
+                    console.log(data);
                     this._socket.emit('rawData', data);
                 }
             });
+
+            socket.on('end', () => {
+                this._localSockets.delete(socket);
+            });
         });
+
+        server.listen(LOCAL_PORT, '127.0.0.1');
 
         this._socket.on('connect', () => {
             this._connectHandler();
@@ -62,15 +69,15 @@ export class MainController {
         });
 
         this._socket.on('rawData', (data: Buffer) => {
-            if (this._localSocket) {
-                this._localSocket.write(data);
+            console.log(data);
+            for (let socket of this._localSockets) {
+                socket.write(data);
             }
         });
     }
 
     private _connectHandler() {
         console.log('server connected');
-
         this._socket.sendBuffer = [];
     }
 

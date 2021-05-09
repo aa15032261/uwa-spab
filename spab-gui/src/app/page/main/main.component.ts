@@ -35,7 +35,7 @@ import {
   FullScreen as olControlFullScreen,
   defaults as olControlDefaultControls
 } from 'ol/control';
-import { ApiService, SpabLog } from 'src/app/service/api.service';
+import { ApiService, SpabClientSummary, SpabLog } from 'src/app/service/api.service';
 import { UtilsService } from 'src/app/service/utils.service';
 import Geometry from 'ol/geom/Geometry';
 
@@ -64,10 +64,18 @@ export class MainComponent implements OnInit, OnDestroy  {
     clientId: string
   }[] = [];
 
+  selectedClient: SpabClientSummary | undefined;
   cameraNames = new Set<string>();
   sensorDataMap = new Map<string, any>();
 
+
   private _clientSelectValue: string = '';
+
+  private _logSelectedTimestamp: number = 0;
+  logStartTimestamp: number = 0;
+  logEndTimestamp: number = 0;
+  private _logSliderTimer: any;
+
 
   get clientSelectValue() {
     return this._clientSelectValue;
@@ -83,18 +91,57 @@ export class MainComponent implements OnInit, OnDestroy  {
 
       await this.apiService.unsubscribeAll();
 
+      if (this._logSliderTimer) {
+        clearTimeout(this._logSliderTimer);
+      }
+
       if (clientId !== '') {
+        this.selectedClient = this.apiService.getClient(clientId);
+
         await this.apiService.subscribe(clientId);
 
-        let client = this.apiService.getClient(clientId);
+        if (this.selectedClient) {
+          this.logStartTimestamp = Math.round(this.selectedClient.logStartTimestamp / 1000);
+          this.logEndTimestamp = Math.round(this.selectedClient.logEndTimestamp / 1000);
+          this._logSelectedTimestamp = this.logEndTimestamp;
 
-        if (client) {
-          for (let spabLog of client.latestLogs) {
-            this.renderLog(clientId, spabLog);
+          for (let spabLog of this.selectedClient.latestLogs) {
+            this.renderLog(clientId, spabLog, true);
           }
         }
+      } else {
+        this.selectedClient = undefined;
       }
     }, 0);
+  }
+
+  get logSelectedTimestamp() {
+    return this._logSelectedTimestamp;
+  }
+
+  set logSelectedTimestamp(logSelectedTimestamp: number) {
+    if (this.selectedClient) {
+      this.cameraNames = new Set<string>();
+      this.sensorDataMap = new Map<string, any>();
+      this._logSelectedTimestamp = logSelectedTimestamp;
+
+      if (this._logSelectedTimestamp === this.logEndTimestamp) {
+        for (let spabLog of this.selectedClient.latestLogs) {
+          this.renderLog(this.selectedClient.clientId, spabLog, true);
+        }
+      } else {
+        if (this._logSliderTimer) {
+          clearTimeout(this._logSliderTimer);
+        }
+
+        this._logSliderTimer = setTimeout(async () => {
+          if (this.selectedClient) {
+            await this.apiService.getLogs(this.selectedClient.clientId, this._logSelectedTimestamp * 1000);
+          }
+          this._logSliderTimer = null;
+        }, 50);
+      }
+    }
   }
 
 
@@ -177,8 +224,21 @@ export class MainComponent implements OnInit, OnDestroy  {
       }
     );
 
-    this.apiService.addLogListener('main', (clientId, spabLog) => {
-      this.renderLog(clientId, spabLog);
+    this.apiService.addLogListener('main', (clientId, spabLog, latest) => {
+      if (this.selectedClient) {
+
+        if (latest) {
+          if (this.logEndTimestamp === this._logSelectedTimestamp) {
+            this.renderLog(clientId, spabLog, latest);
+            this._logSelectedTimestamp = Math.round(this.selectedClient.logEndTimestamp / 1000);
+          }
+        } else {
+          this.renderLog(clientId, spabLog, latest);
+        }
+
+        this.logStartTimestamp = Math.round(this.selectedClient.logStartTimestamp / 1000);
+        this.logEndTimestamp = Math.round(this.selectedClient.logEndTimestamp / 1000);
+      }
     });
 
     this.apiService.addStatusListener('main', () => {
@@ -257,7 +317,7 @@ export class MainComponent implements OnInit, OnDestroy  {
     }
   }
 
-  renderLog(clientId: string, spabLog: SpabLog) {
+  renderLog(clientId: string, spabLog: SpabLog, latest: boolean) {
     if (!(clientId === this._clientSelectValue)) {
       return;
     }
@@ -300,7 +360,6 @@ export class MainComponent implements OnInit, OnDestroy  {
       try {
         let dataJson = new TextDecoder().decode(spabLog.data);
         let data = JSON.parse(dataJson);
-        data._ts = spabLog.timestamp;
         this.sensorDataMap.set(spabLog.typeId, data);
 
         if (spabLog.typeId === 'GLOBAL_POSITION_INT') {
