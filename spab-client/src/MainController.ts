@@ -131,7 +131,6 @@ export class MainController {
         });
 
         this._socket.on('rawData', (data: Buffer) => {
-            console.log(data);
             this._apControl.sendRawData(data);
         });
 

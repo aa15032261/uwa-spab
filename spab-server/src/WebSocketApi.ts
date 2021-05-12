@@ -220,8 +220,8 @@ export class WebSocketApi {
 
         socket.on('disconnect', async (err: any) => {
             let count = await this._getClientPassthroughCount(clientId);
-            if (count === 1) {
-                await this._sendMsgAck(socket, 'passthrough', [false], true);
+            if (count === 0) {
+                this._sendToClient(clientId, 'passthrough', [false], true);
             }
         });
 

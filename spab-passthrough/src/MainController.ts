@@ -38,7 +38,6 @@ export class MainController {
 
             socket.on('data', (data: Buffer) => {
                 if (this._checkOnline()) {
-                    console.log(data);
                     this._socket.emit('rawData', data);
                 }
             });
@@ -47,6 +46,8 @@ export class MainController {
                 this._localSockets.delete(socket);
             });
         });
+
+        server.on('error', (e) => { });
 
         server.listen(LOCAL_PORT, '127.0.0.1');
 
@@ -69,7 +70,6 @@ export class MainController {
         });
 
         this._socket.on('rawData', (data: Buffer) => {
-            console.log(data);
             for (let socket of this._localSockets) {
                 socket.write(data);
             }
