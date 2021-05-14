@@ -178,9 +178,9 @@ export class MainController {
             }
 
             if (this._isPolling) {
-                this._apControl.msgInterval = CAM_ONLINE_INTERVAL;
+                this._apControl.msgInterval = SNR_ONLINE_INTERVAL;
             } else {
-                this._apControl.msgInterval = CAM_OFFLINE_INTERVAL;
+                this._apControl.msgInterval = SNR_OFFLINE_INTERVAL;
             }
 
             this._restartEventLoop();
@@ -202,10 +202,12 @@ export class MainController {
     }
 
     private _handleNewCameraData(camName: string, camData: Buffer) {
+        console.log('b'); 
         this._handleNewData('camera', camName, camData);
     }
 
     private _handleNewSensorData(snrName: string, snrData: Buffer) {
+        console.log('a');
         this._handleNewData('sensor', snrName, snrData);
     }
 

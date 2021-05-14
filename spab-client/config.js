@@ -14,7 +14,7 @@ module.exports = function() {
 
     this.CAM_CFGS = [
         {
-            name: "Test",
+            name: "Front",
             cfg: ['avfoundation', '-framerate', '30', '-pix_fmt', 'bgr0', '-video_size', '640x480', '-i', '0:none']
         }
         /*{
@@ -28,9 +28,9 @@ module.exports = function() {
     this.ARDUPILOT_COM_PATH = '/dev/tty.usbserial-A10597BA';
     this.ARDUPILOT_COM_BAUD = 57600;
 
-    this.CAM_ONLINE_INTERVAL = 1000;
+    this.CAM_ONLINE_INTERVAL = 2000;
     this.CAM_OFFLINE_INTERVAL = 1 * 60 * 1000;
 
-    this.SNR_ONLINE_INTERVAL = 500;
+    this.SNR_ONLINE_INTERVAL = 1000;
     this.SNR_OFFLINE_INTERVAL = 1 * 30 * 1000;
 }

@@ -210,7 +210,7 @@ export class WebSocketApi {
      * Setup client socket APIs.
      * 
      * API:
-     * log - logClientEncoded, ackResponse
+     * log - logClientEncoded, ackResponse(optional)
      * standard log messages
      * 
      * rawData - data
@@ -250,11 +250,10 @@ export class WebSocketApi {
         });
 
         socket.on('log', async (logClientEncoded, ackResponse) => {
-            // ack response
-            if (!(ackResponse instanceof Function)) {
-                return;
+            // optional ack response 
+            if (ackResponse instanceof Function) {
+                ackResponse(true);
             }
-            ackResponse(true);
 
             if (!logClientEncoded) {
                 return;
@@ -414,7 +413,11 @@ export class WebSocketApi {
     }
 
 
-    
+    /**
+     * Unsubscribe all clients
+     * 
+     * @param {Socket & LoginStatus & GuiStatus} socket 
+     */
     private async _handleGuiUnsubscribeAll(
         socket: Socket & LoginStatus & GuiStatus
     ) {

@@ -53,7 +53,7 @@ class ClientStore {
 
         this._clientStoreUpdateTimer = setTimeout(async () => {
             await this._updateClientList();
-        }, 15 * 60 * 1000);
+        }, 5 * 60 * 1000);
 
         try {
             let newClientIdSet = new Set<string>();
@@ -77,11 +77,17 @@ class ClientStore {
                 }
             }
 
-            // add new clients to the list
+            // update client list
             for (let clientObj of clientObjs) {
-                if (!existingClientIdSet.has(clientObj.clientId)) {
-                    await this.createClient(clientObj.clientId, clientObj.name);
-                }
+                try {
+                    let client = await this.createClient(clientObj.clientId, clientObj.name);
+
+                    let oldClient = this._clientStore.get(clientObj.clientId);
+                    if (oldClient) {
+                        client.socketIds = oldClient.socketIds;
+                    }
+                    this._clientStore.set(clientObj.clientId, client);
+                } catch (e) { }
             }
         } catch (e) { }
     }
@@ -89,33 +95,34 @@ class ClientStore {
     public async createClient(
         clientId: string,
         name: string
-    ) {
-        if (!this._clientStore.has(clientId)) {
-            let client: SpabClient = {
-                clientId: clientId,
-                name: name,
-                socketIds: new Set<string>(),
-                logStartTimestamp: 0,
-                latestLogs: []
-            };
+    ): Promise<SpabClient> {
+        let client: SpabClient = {
+            clientId: clientId,
+            name: name,
+            socketIds: new Set<string>(),
+            logStartTimestamp: 0,
+            latestLogs: []
+        };
 
-            let logStartTimestampRes = (await this._pool!.query(
-                `SELECT 
-                    MIN(timestamp) AS timestamp 
-                FROM logs 
-                WHERE
-                "clientId"=$1;`,
-                [clientId]
-            )).rows;
+        let logStartTimestampRes = (await this._pool!.query(
+            `SELECT 
+                MIN(timestamp) AS timestamp 
+            FROM logs 
+            WHERE
+            "clientId"=$1;`,
+            [clientId]
+        )).rows;
 
-            if (logStartTimestampRes) {
-                client.logStartTimestamp = logStartTimestampRes[0].timestamp;
-            }
-
-            let latestLogs = await this.getLogs(clientId, -1);
-            client.latestLogs = latestLogs;
-            this._clientStore.set(clientId, client);
+        if (logStartTimestampRes) {
+            client.logStartTimestamp = logStartTimestampRes[0].timestamp;
+        } else {
+            client.logStartTimestamp = (new Date()).getTime();
         }
+
+        let latestLogs = await this.getLogs(clientId, -1);
+        client.latestLogs = latestLogs;
+
+        return client;
     }
 
     public async getLogs(clientId: string, timestamp: number): Promise<SpabLog[]> {
