@@ -8,20 +8,27 @@ import { IncomingHttpHeaders } from 'http';
 import { Pool } from 'pg';
 
 interface SessionStruct {
+    // set to true to automatically renew the existing session with a new cookie token
     autoGen: boolean,
-    isSet: boolean,
+    // Set to true if the session is saved to database, otherwise, false
+    isSaved: boolean,
+    // session info object
     info: any,
+    // session data object
     data?: any
 }
 
 
 class SessionController {
 
+    /** postgres connection pool */
     private _pool?: Pool;
 
+    /** cookie encryption key pair */
     private _cookieIv: Buffer;
     private _cookieKey: Buffer;
 
+    /** data encryption key pair */
     private _dataIv: Buffer;
     private _dataKey: Buffer;
 
@@ -57,12 +64,23 @@ class SessionController {
         }, 15 * 60 * 1000);
     }
 
+    /**
+     * Update Postgre database pool
+     * 
+     * @param {Pool} pool - Postgre pool
+     */
     public updateDbPool(pool: Pool) {
         this._pool = pool;
     }
 
 
-    private _getKeyIv( type: 'cookie' | 'data'): [Buffer, Buffer] | undefined {
+    /**
+     * Get encryption key pair
+     * 
+     * @param {'cookie' | 'data'} type - Key pair type
+     * @returns {[Buffer, Buffer] | undefined} - An array contain key and iv buffer
+     */
+    private _getKeyIv(type: 'cookie' | 'data'): [Buffer, Buffer] | undefined {
         let keyIv: [Buffer, Buffer] | undefined;
 
         if (type === 'cookie') {
@@ -74,6 +92,13 @@ class SessionController {
         return keyIv;
     }
 
+    /**
+     * Decrypt data
+     * 
+     * @param {Buffer} buf - Encrypted data
+     * @param {'cookie' | 'data'} type - Key pair type
+     * @returns {string} - Decrypted data
+     */
     private _decrypt(buf: Buffer, type: 'cookie' | 'data'): string {
         let ret = '';
 
@@ -95,6 +120,13 @@ class SessionController {
         return ret;
     };
 
+    /**
+     * Encrypt data
+     * 
+     * @param {string} - Decrypted data
+     * @param {'cookie' | 'data'} type - Key pair type
+     * @returns {Buffer} - Encrypted data
+     */
     private _encrypt(str: string, type: 'cookie' | 'data'): Buffer {
         let ret = Buffer.alloc(0);
 
@@ -117,8 +149,11 @@ class SessionController {
     };
     
 
-
-
+    /**
+     * Generate an unique cookie token
+     * 
+     * @returns {Promise<{token: string, encryptedToken: string} | undefined>} - Cookie token
+     */
     private async _generateToken(): Promise<{token: string, encryptedToken: string} | undefined> {
         if (!this._pool) {
             return undefined;
@@ -150,6 +185,12 @@ class SessionController {
         return undefined;
     };
 
+    /**
+     * Get decrypted cookie token
+     * 
+     * @param {string} encryptedToken - Encrypted cookie token
+     * @returns {string | undefined} - Decrypted cookie token
+     */
     private _getToken(encryptedToken: string): string | undefined {
         try {
             let token = this._decrypt(Buffer.from(encryptedToken, 'hex'), 'cookie');
@@ -163,6 +204,13 @@ class SessionController {
         return undefined;
     };
     
+    /**
+     * Compare the similarity of two strings
+     * 
+     * @param {string} s1 - String 1
+     * @param {string} s2 - String 2
+     * @returns {number} - Similarity (0..1)
+     */
     private _similarity(s1: string, s2: string): number {
         if (!s1 || !s2) {
             return 0;
@@ -208,14 +256,36 @@ class SessionController {
         }
     };
     
+
+    /**
+     * Append 4 bytes random number to a string
+     * 
+     * @param {string} str - String without random number
+     * @returns {string} - String with random number
+     */
     private _generateR(str: string) {
         return crypto.randomBytes(4).toString('hex') + str;
     };
+
+    /**
+     * Remove 4 bytes random number from a string
+     * 
+     * @param {string} str - String with random number
+     * @returns {string} - String without random number
+     */
     private _removeR(str: string) {
         return str.substring(8);
     };
     
-    private _verifyInfo(info: any, info2: any) {
+
+    /**
+     * Compare session information
+     * 
+     * @param {any} info - Session info object 1
+     * @param {any} info2 - Session info object 2
+     * @returns {boolean} - True if the two session info objects matched, otherwise, false
+     */
+    private _compareInfo(info: any, info2: any): boolean {
         if (info && info2) {
             let agentSimilarity = this._similarity(info['agent'], info2['agent']);
     
@@ -230,6 +300,13 @@ class SessionController {
     };
 
     
+    /**
+     * Create a new session
+     * 
+     * @param {any} info - Session info object
+     * @param {any} data - Session data object
+     * @returns {Promise<string | undefined>} - Encrypted cookie token
+     */
     private async _createSession(
         info: any, 
         data: any
@@ -263,6 +340,12 @@ class SessionController {
         return undefined;
     };
 
+
+    /**
+     * Delete a session by decrypted cookie token
+     * 
+     * @param {string} token - Decrypted cookie token
+     */
     private async _deleteSessionInternal(token: string) {
         try {
             if (!this._pool) {
@@ -276,6 +359,11 @@ class SessionController {
         } catch (e) { }
     }
 
+    /**
+     * Delete a session by encrypted cookie token
+     * 
+     * @param {string} encryptedToken - Encrypted cookie token
+     */
     private async _deleteSession(encryptedToken: string) {
         let token = this._getToken(encryptedToken);
 
@@ -284,7 +372,13 @@ class SessionController {
         }
     };
 
-
+    /**
+     * Get session data from database by encrypted cookie token
+     * 
+     * @param {string} encryptedToken - Encrypted cookie token
+     * @param {any} info - Session info object
+     * @returns {Promise<any | undefined>} - Session data object
+     */
     private async _getSessionData(encryptedToken: string, info: any): Promise<any | undefined> {
         try {
             if (!this._pool) {
@@ -310,7 +404,7 @@ class SessionController {
                         throw 'sessions corrupted';
                     }
 
-                    if (this._verifyInfo(JSON.parse(this._removeR(this._decrypt(res.info, 'data'))), info) === true) {
+                    if (this._compareInfo(JSON.parse(this._removeR(this._decrypt(res.info, 'data'))), info) === true) {
                         if (res.data) {
                             return JSON.parse(this._removeR(this._decrypt(res.data, 'data')));
                         }
@@ -334,10 +428,17 @@ class SessionController {
     };
 
     
+    /**
+     * Get session info object from http headers and ip address
+     * 
+     * @param {IncomingHttpHeaders} headers - Http headers
+     * @param {string | undefined} ip - Ip address of the connection
+     * @returns {any} - Session info object
+     */
     private _getInfoFromConnection(
         headers: IncomingHttpHeaders, 
         ip: string | undefined
-    ) {
+    ): any {
         let self = this;
 
         let ipAddress: string = '';
@@ -351,15 +452,19 @@ class SessionController {
             ipAddress = ((headers['x-forwarded-for'] || ip || '') as string).split(',')[0].trim();
         }
 
+        // get browser string
         let agent = 'Unknown';
         if (headers['user-agent']) {
             agent = headers['user-agent'].substring(0, 64) + headers['user-agent'].replace(/[^0-9]/g, '');
             agent = agent.substring(0, 512);
         }
 
+        // convert 6to4 to ip4
         if (ipAddress.startsWith('::ffff:')) {
             ipAddress = ipAddress.substring(7);
         }
+
+        // convert local ip4 address to ip6
         if (ipAddress === '127.0.0.1') {
             ipAddress = '::1';
         }
@@ -370,6 +475,15 @@ class SessionController {
         };
     };
 
+
+    /**
+     * Get SessionStruct object from encrypted cookie token, http headers and ip address
+     * 
+     * @param {string | undefined} encryptedToken - Encrypted cookie token
+     * @param {IncomingHttpHeaders} headers - Http headers
+     * @param {string | undefined} ip - Ip address of the connection
+     * @returns {Promise<SessionStruct>} - SessionStruct object
+     */
     public async getSessionStruct(
         encryptedToken: string | undefined,
         headers: IncomingHttpHeaders,
@@ -377,7 +491,7 @@ class SessionController {
     ): Promise<SessionStruct> {
         let sessionStruct: SessionStruct = {
             autoGen: true,
-            isSet: false,
+            isSaved: false,
             info: this._getInfoFromConnection(headers, ip)
         };
 
@@ -389,9 +503,14 @@ class SessionController {
         return sessionStruct;
     }
 
-    
 
-
+    /**
+     * Create or remove cookie of a response
+     * 
+     * @param {express.Response} res - Express response
+     * @param {string} newEncryptedToken - Unique cookie token
+     * @param {boolean} isSet - Set to true to create a new session; set to false to remove existing session
+     */
     private _createCookie(
         res: express.Response, 
         newEncryptedToken: string, 
@@ -419,6 +538,12 @@ class SessionController {
         }
     };
 
+
+    /**
+     * Remove cookie of a response
+     * 
+     * @param {express.Response} res - Express response
+     */
     public destroyClientCookie(
         res: express.Response, 
     ) {
@@ -441,13 +566,19 @@ class SessionController {
         }
     }
 
-
+    /**
+     * Get session middleware for express
+     * 
+     * @returns - Session middleware for express
+     */
     public getSessionHandler() {
         return [
             cookieParser(),
             async (req: express.Request, res: express.Response, next: express.NextFunction) => {
 
-                let generateSession = async (req: express.Request, res: express.Response, callback: Function, args?: IArguments) => {
+                // save session based on session parameters
+                let saveSession = async (req: express.Request, res: express.Response, callback: Function, args?: IArguments) => {
+                    // invoke original send function
                     let final = function () {
                         if (callback) {
                             if (args) {
@@ -460,12 +591,16 @@ class SessionController {
 
                     let sessionStruct = (req as any).session[SESSION_NAME] as SessionStruct;
     
-                    if (!sessionStruct.isSet) {
-                        sessionStruct.isSet = true;
+                    if (!sessionStruct.isSaved) {
+                        sessionStruct.isSaved = true;
+
+                        // if the session needs to be renewed and session data is not empty
                         if ((req as any).session[SESSION_NAME].autoGen && sessionStruct.data) {
 
+                            // delete existing session from database
                             await this._deleteSession(req.cookies[SESSION_NAME]);
 
+                            // create a new session
                             let encryptedToken = await this._createSession(
                                 sessionStruct.info, 
                                 sessionStruct.data
@@ -484,25 +619,32 @@ class SessionController {
                     }
                 };
     
+                // express response hooks
+                // 
+                // send(), sendFile() and sendStatus() functions are overwritten to ensure 
+                // the cookie header is set correctly
                 let oldSend = res.send;
                 let oldSendFile = res.sendFile;
                 let oldSendStatus = res.sendStatus;
     
                 (res as any).send = function () {
-                    generateSession(req, res, oldSend, arguments);
+                    saveSession(req, res, oldSend, arguments);
                 };
 
                 (res as any).sendFile = function () {
-                    generateSession(req, res, oldSendFile, arguments);
+                    saveSession(req, res, oldSendFile, arguments);
                 };
 
                 (res as any).sendStatus = function () {
-                    generateSession(req, res, oldSendStatus, arguments);
+                    saveSession(req, res, oldSendStatus, arguments);
                 };
     
+                // create a empty session object
                 if (!req.session) {
                     (req as any).session = { };
                 }
+
+                // get session data from database
                 try {
                     (req as any).session[SESSION_NAME] = await this.getSessionStruct(
                         req.cookies[SESSION_NAME], 
@@ -518,7 +660,6 @@ class SessionController {
         ]
     };
 }
-
 
 export {
     SessionStruct,
