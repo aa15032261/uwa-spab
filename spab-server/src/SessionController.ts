@@ -346,7 +346,7 @@ class SessionController {
         if (headers['cf-connecting-ip'] !== undefined) {
             ipAddress = headers['cf-connecting-ip'] as string;
         }
-        // get client's ip through nginx
+        // get client's ip through web server
         else {
             ipAddress = ((headers['x-forwarded-for'] || ip || '') as string).split(',')[0].trim();
         }

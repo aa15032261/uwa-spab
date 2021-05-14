@@ -2,12 +2,14 @@
 import './Config';
 
 import { ArduPilotControl } from './ArduPilotControl';
-import { CamControl } from "./CamControl";
+import { CamControl } from './CamControl';
 import { LogClientDb } from './LogClientDb';
-import { SpabDataStruct } from "./../../spab-data-struct/SpabDataStruct";
+import { SpabDataStruct } from './../../spab-data-struct/SpabDataStruct';
 
 import { authenticator } from 'otplib';
-import { io, Socket } from "socket.io-client";
+import { io, Socket } from 'socket.io-client';
+
+import * as resetDateCache from 'reset-date-cache';
 
 interface Camera {
     name: string,
@@ -102,6 +104,10 @@ export class MainController {
 
             // reconnect in 30 seconds if kicked by the server
             setTimeout(() => {
+                // forces nodejs to get current system time
+                // as the login depends on totp
+                (resetDateCache as () => void)();
+
                 this._socket.connect();
             }, 30000);
         });
