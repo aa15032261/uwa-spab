@@ -143,7 +143,6 @@ export class ArduPilotControl {
                 this._msgCallback(msgType, msg);
             }
         }
-        this._msgCallback('test', {test:123});
 
         if (this._apMavlinkLastTimestamp < (new Date()).getTime() - 1000) {
             this._notifyArduPilot();
