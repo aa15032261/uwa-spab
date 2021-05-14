@@ -512,17 +512,28 @@ export class WebSocketApi {
         return count;
     }
 
+    /**
+     * Update client's polling mode
+     * 
+     * @param {string} clientId 
+     * @param {boolean} isPolling 
+     * @returns {Promise<void>}
+     */
     private async _setClientPolling (
         clientId: string,
         isPolling: boolean
-    ): Promise<any>  {
+    ): Promise<void>  {
 
+        // if the client is not connected to the server, 
+        // ignore the function call
         if (this._clientStore.getSocketIdCount(clientId) <= 0) {
             return;
         }
 
+        // if there is 0 subscribers and polling is set to false
+        // or there is 1 subscriber and polling is set to true,
+        // update client's polling mode
         let count = await this._getClientGuiCount(clientId);
-
         if (
             (count === 1 && isPolling === true) ||
             (count === 0 && isPolling === false)
@@ -531,25 +542,40 @@ export class WebSocketApi {
         }
     }
 
+    /**
+     * Send an event to a client
+     * 
+     * @param {string} clientId
+     * @param {string} evt - Event type
+     * @param {any[]} val - Event parameters
+     * @param {boolean} ack - True if the message requires an ack response, otherwise, false.
+     */
     private _sendToClient (
         clientId: string,
         evt: string, 
-        values: any[],
+        val: any[],
         ack: boolean
     ) {
         let client = this._clientStore.getClient(clientId);
         if (client) {
-
             for (let socketId of client.socketIds) {
                 let socket = this._clientIo.sockets.sockets.get(socketId);
 
                 if (socket) {
-                    this._sendMsgAck(socket, evt, values, ack);
+                    this._sendMsgAck(socket, evt, val, ack);
                 }
             }
         }
     }
 
+    /**
+     * Send an event to the gui sockets subscribed to a client
+     * 
+     * @param {string} clientId
+     * @param {string} evt - Event type
+     * @param {any[]} values - Event parameters
+     * @param {boolean} ack - True if the message requires an ack response, otherwise, false
+     */
     private async _sendToGuiSubscriber(
         clientId: string,
         evt: string, 
@@ -568,6 +594,14 @@ export class WebSocketApi {
         }
     }
 
+    /**
+     * Send an event to the passthrough sockets subscribed to a client
+     * 
+     * @param {string} clientId
+     * @param {string} evt - Event type
+     * @param {any[]} val - Event parameters
+     * @param {boolean} ack - True if the message requires an ack response, otherwise, false
+     */
     private async _sendToPassthroughSubscriber(
         clientId: string,
         evt: string, 
@@ -584,59 +618,89 @@ export class WebSocketApi {
         }
     }
 
+    /**
+     * Send an event to all gui sockets
+     * 
+     * @param {string} evt - Event type
+     * @param {any[]} val - Event parameters
+     * @param {boolean} ack - True if the message requires an ack response, otherwise, false.
+     */
     private async _broadcastToGui(
         evt: string, 
-        values: any[],
+        val: any[],
         ack: boolean
     ): Promise<any>  {
         for (let [socketId, socket] of await this._guiIo.sockets.sockets) {
             let guiSocket = socket as Socket & LoginStatus;
             if (guiSocket.loginStatus?.loggedIn) {
-                this._sendMsgAck(guiSocket, evt, values, ack);
+                this._sendMsgAck(guiSocket, evt, val, ack);
             }
         }
     }
 
+    /**
+     * Send an event to a socket
+     * 
+     * @param {Socket} socket
+     * @param {string} evt - Event type
+     * @param {any[]} val - Event parameters
+     * @param {boolean} ack - True if the message requires an ack response, otherwise, false.
+     * @returns {Promise<any>} - Return response if the operation is succussful, otherwise, undefined
+     */
     private async _sendMsgAck(
         socket: Socket, 
         evt: string, 
-        values: any[],
+        val: any[],
         ack: boolean
     ): Promise<any> {
         if (ack) {
             for (let i = 0; i < 3; i++) {
                 try {
-                    return await this._sendMsgAckOnce(socket, evt, values, (i + 1) * 10000);
+                    return await this._sendMsgAckOnce(socket, evt, val, (i + 1) * 10000);
                 } catch (e) { };
             }
         } else {
-            socket.emit(evt, ...values);
+            socket.emit(evt, ...val);
         }
 
         return;
     }
 
+    /**
+     * Send an event to a socket once
+     * 
+     * @param {Socket} socket
+     * @param {string} evt - Event type
+     * @param {any[]} val - Event parameters
+     * @param {number} timeout - Timeout for the operation
+     * @returns {Promise<any>} - Return response if the operation is succussful, otherwise, undefined
+     */
     private _sendMsgAckOnce(
         socket: Socket, 
         evt: string, 
-        values: any[],
+        val: any[],
         timeout: number
     ): Promise<any> {
         return new Promise<any>((resolve, reject) => {
+            // throw error if the operation is taking too long
             setTimeout(() => {
-                reject()
+                reject('timeout')
             }, timeout);
 
-            socket.emit(evt, ...values, (res: any) => {
+            // return response
+            socket.emit(evt, ...val, (res: any) => {
                 resolve(res);
             });
         })
     }
 
-
+    /**
+     * Update Postgre database pool
+     * 
+     * @param {Pool} pool - Postgre pool
+     */
     public updateDbPool(pool: Pool) {
         this._pool = pool;
         this._clientStore.updateDbPool(pool);
     }
-    
 }
