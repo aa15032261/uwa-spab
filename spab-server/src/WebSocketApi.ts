@@ -173,7 +173,7 @@ export class WebSocketApi {
      * 
      * @param {string} token - The client token
      * @param {string} twoFactorToken - The two-factor token
-     * @returns {string | undefined} - Returns the client id if authenticated, otherwise, undefined.
+     * @returns {Promise<string | undefined>} - Returns the client id if authenticated, otherwise, undefined.
      */
     private async _clientAuth(token: string, twoFactorToken: string): Promise<string | undefined> {
         let clientObj = (await this._pool!.query(
@@ -414,7 +414,7 @@ export class WebSocketApi {
 
 
     /**
-     * Unsubscribe all clients
+     * Unsubscribe all clients for a gui socket
      * 
      * @param {Socket & LoginStatus & GuiStatus} socket 
      */
@@ -423,12 +423,22 @@ export class WebSocketApi {
     ) {
         if (socket.guiStatus) {
             for (let clientId of socket.guiStatus.subscribedClientIds) {
+                // remove the client id from subscribed list
                 socket.guiStatus!.subscribedClientIds.delete(clientId);
+
+                // notify the client to exit polling mode if it has no subsribers
                 await this._setClientPolling(clientId, false);
             }
         }
     }
 
+    /**
+     * Send logs at the specified timestamp to a gui socket
+     * 
+     * @param {string} clientId
+     * @param {number} timestamp
+     * @param {Socket} socket 
+     */
     private async _sendLogs(
         clientId: string,
         timestamp: number,
@@ -440,12 +450,15 @@ export class WebSocketApi {
             return;
         }
 
+        // if the timestamp is a positive number,
+        // get the logs from client store;
+        // otherwise get the most recent logs
         let logs = client.latestLogs;
-
         if (timestamp > 0) {
             logs = await this._clientStore.getLogs(clientId, timestamp);
         }
 
+        // send the log to the gui socket
         for (let spabLog of logs) {
             this._sendMsgAck(socket, 'log', [
                 this._clientStore.getLogGui(clientId, spabLog)
@@ -454,6 +467,12 @@ export class WebSocketApi {
     }
 
 
+    /**
+     * Get the number of gui socket subscribed to the client
+     * 
+     * @param {string} clientId 
+     * @returns {Promise<number>}
+     */
     private async _getClientGuiCount(clientId: string): Promise<number> {
         let count = 0;
         for (let [socketId, socket] of await this._guiIo.sockets.sockets) {
@@ -470,6 +489,12 @@ export class WebSocketApi {
         return count;
     }
 
+    /**
+     * Get the number of passthrough socket subscribed to the client
+     * 
+     * @param clientId 
+     * @returns {Promise<number>}
+     */
     private async _getClientPassthroughCount(clientId: string): Promise<number> {
         let count = 0;
 
