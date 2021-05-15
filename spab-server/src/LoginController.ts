@@ -7,25 +7,38 @@ import { SessionStruct } from 'SessionController';
 import { Pool } from 'pg';
 
 interface LoginSession {
+    /** last login timestamp */
     lastLogin?: number,
     userId?: string
 }
 
 interface LoginStatus {
     loginStatus?: {
+        /** current login status */
         loggedIn: boolean,
+        /** last login timestamp */
         lastLogin: number,
         userId: string,
+        /** login error */
         reason? : string
     }
 }
 
 class LoginController {
 
+    /** postgres connection pool */
     private _pool?: Pool;
 
+    /**
+     * LoginController manages login sessions of the application
+     */
     constructor() {}
 
+    /**
+     * Get login middleware for express
+     * 
+     * @returns - Login middleware for express
+     */
     public getLoginHandler() {
         return async (
             req: express.Request, 
@@ -45,8 +58,14 @@ class LoginController {
         }
     }
 
+    /**
+     * Get login status of a session. The status is attached to obj.
+     * 
+     * @param {any & LoginStatus} obj - Object for receiving login status
+     * @param {SessionStruct | undefined} sessionStruct - The login session
+     */
     public async getLoginStatus(
-        obj: LoginStatus, 
+        obj: any & LoginStatus, 
         sessionStruct: SessionStruct | undefined
     ) {
         obj.loginStatus = {
@@ -98,8 +117,14 @@ class LoginController {
     }
 
 
-
-    public _verifyUserPass(clrPw: string, scryptedPw: string) {
+    /**
+     * Verifies user password using scrypt
+     * 
+     * @param {string} clrPw - Clear text password
+     * @param {string} scryptedPw - Scrypt encrypted password
+     * @returns {boolean} - True if the password is valid, otherwise, false
+     */
+    private _verifyUserPass(clrPw: string, scryptedPw: string) {
         try {
             let [saltHex, pwHex] = scryptedPw.split(":");
 
@@ -124,6 +149,14 @@ class LoginController {
         return false;
     }
 
+    /**
+     * Handles user login
+     * 
+     * @param {string} email - User email address
+     * @param {string} clrPw - Clear text password
+     * @param {SessionStruct} sessionStruct - A session for receiving login session data
+     * @returns {Promise<string | undefined>} - Login error (undefined if login is successful)
+     */
     public async login(email: string, clrPw: string, sessionStruct: SessionStruct): Promise<string | undefined> {
         try {
             if (!this._pool) {
@@ -139,12 +172,16 @@ class LoginController {
                 return 'invalid credential';
             }
     
+            // Hardcoded max failed login attempt
             if (userObj.failedAttempt > 5) {
                 return 'account disabled';
             }
 
             let curTime = (new Date()).getTime();
     
+            // If the password is correct, 
+            // clears failed attempt count and updates last login timestamp,
+            // and also update login session data
             if (this._verifyUserPass(clrPw, userObj.pass)) {
                 if (!sessionStruct.data) {
                     sessionStruct.data = {};
@@ -170,15 +207,21 @@ class LoginController {
         }
     }
 
+    /**
+     * Handles user logout
+     * 
+     * @param {SessionStruct} sessionStruct - A session for receiving login session data
+     * @returns {Promise<string | undefined>} - Logout error (undefined if logout is successful)
+     */
     public async logout(sessionStruct: SessionStruct): Promise<string | undefined> {
         try {
             let sessionObj = sessionStruct.data as LoginSession;
 
             if (sessionObj) {
+                // Clears critical login data
                 delete sessionObj.userId;
                 delete sessionObj.lastLogin;
             }
-            
         } catch (e) {
             return 'internal error';
         }
@@ -186,6 +229,12 @@ class LoginController {
         return;
     }
 
+    /**
+     * Generates a scrypt encrypted password
+     * 
+     * @param {string} clrPw - Clear text password
+     * @returns {string} - Scrypt encrypted password
+     */
     public genScryptedPass(clrPw: string) {
         let salt = crypto.randomBytes(16);
 
@@ -201,6 +250,11 @@ class LoginController {
         ).toString('base64');
     }
 
+    /**
+     * Update Postgre database pool
+     * 
+     * @param {Pool} pool - Postgre pool
+     */
     public updateDbPool(pool: Pool) {
         this._pool = pool;
     }
@@ -211,4 +265,3 @@ export {
     LoginSession,
     LoginController
 }
-
