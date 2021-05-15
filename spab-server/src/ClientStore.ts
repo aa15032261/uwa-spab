@@ -7,91 +7,130 @@ interface DbLog extends SpabDataStruct.ILogClient {
 }
 
 interface SpabLog  {
+    /** Log type */
     type: 'camera' | 'sensor',
+    /** Log type id (subcategory) */
     typeId: string,
+    /** Log timestamp */
     timestamp: number,
-    data: any
+    /** Log data */
+    data: Buffer
 }
 
 interface SpabClient {
-    clientId: string,
+    /** Client id */
+    clientId: string, 
+    /** Client name */
     name: string,
+    /** Client's socket ids */
     socketIds: Set<string>,
+    /** Timestamp of the first log */
     logStartTimestamp: number,
+    /** The most recent logs */
     latestLogs: SpabLog[]
 }
 
 interface SpabClientSummary {
+    /** Client id */
     clientId: string, 
+    /** Client name */
     name: string, 
+    /** True if the client is connected to the server */
     connected: boolean,
+    /** Timestamp of the first log */
     logStartTimestamp: number
 }
 
 class ClientStore {
-
+    /** postgres connection pool */
     private _pool?: Pool;
-    private _clientStore = new Map<string, SpabClient>();
 
-    private _clientStoreUpdateTimer?: ReturnType<typeof setTimeout>;
+    /** Client map
+     * Key: client id
+     * Value: SpabClient object
+     */
+    private _clientMap = new Map<string, SpabClient>();
 
+    /**
+     * Timeout handle of the periodic update timer
+     */
+    private _clientMapUpdateTimer?: ReturnType<typeof setTimeout>;
+
+
+    /**
+     * ClientStore manages client logs and connection status
+     */
     constructor() { }
 
+    /**
+     * Update Postgre database pool
+     * 
+     * @param {Pool} pool - Postgre pool
+     */
     public updateDbPool(pool: Pool) {
         this._pool = pool;
-        this._updateClientList();
+        this._updateClientMap();
     }
 
-    private async _updateClientList() {
+
+    /**
+     * Fetches clients from the database periodically and updates the client map
+     */
+    private async _updateClientMap() {
         if (!this._pool) {
             return;
         }
 
-        if (this._clientStoreUpdateTimer) {
-            clearTimeout(this._clientStoreUpdateTimer);
+        // Clears the old update timeout
+        if (this._clientMapUpdateTimer) {
+            clearTimeout(this._clientMapUpdateTimer);
         }
 
-        this._clientStoreUpdateTimer = setTimeout(async () => {
-            await this._updateClientList();
+        // Setup a new update timeout
+        this._clientMapUpdateTimer = setTimeout(async () => {
+            await this._updateClientMap();
         }, 5 * 60 * 1000);
 
-        try {
-            let newClientIdSet = new Set<string>();
-            let existingClientIdSet = new Set<string>();
 
-            let clientObjs = (await this._pool!.query(
+        try {
+            // Gets all client ids
+            let newClientIdSet = new Set<string>();
+            let clientRows = (await this._pool!.query(
                 `SELECT "_id", "name" FROM clients`
             )).rows;
-
-            for (let clientObj of clientObjs) {
-                clientObj.clientId = clientObj._id;
-                newClientIdSet.add(clientObj._id);
+            for (let clientRow of clientRows) {
+                newClientIdSet.add(clientRow._id);
             }
 
-            // remove deleted clients from the list
-            for (let [clientId, client] of this._clientStore) {
-                if (newClientIdSet.has(client.clientId)) {
-                    existingClientIdSet.add(clientId);
-                } else {
-                    this._clientStore.delete(clientId);
+            // Removes deleted clients from client map
+            for (let [clientId, client] of this._clientMap) {
+                if (!newClientIdSet.has(client.clientId)) {
+                    this._clientMap.delete(clientId);
                 }
             }
 
-            // update client list
-            for (let clientObj of clientObjs) {
+            // For each row, creates a new SpabClient object and saves to the map
+            for (let clientRow of clientRows) {
                 try {
-                    let client = await this.createClient(clientObj.clientId, clientObj.name);
+                    let client = await this.createClient(clientRow._id, clientRow.name);
 
-                    let oldClient = this._clientStore.get(clientObj.clientId);
+                    let oldClient = this._clientMap.get(clientRow._id);
                     if (oldClient) {
                         client.socketIds = oldClient.socketIds;
                     }
-                    this._clientStore.set(clientObj.clientId, client);
+                    this._clientMap.set(clientRow._id, client);
                 } catch (e) { }
             }
         } catch (e) { }
     }
 
+    /**
+     * Creates a new SpabClient object
+     * 
+     * @param {string} clientId - Client id
+     * @param {string} name - Client name
+     * @returns {Promise<SpabClient>} - The SpabClient object
+     */
     public async createClient(
         clientId: string,
         name: string
@@ -104,6 +143,7 @@ class ClientStore {
             latestLogs: []
         };
 
+        // Gets the timestamp of the first log
         let logStartTimestampRes = (await this._pool!.query(
             `SELECT 
                 MIN(timestamp) AS timestamp 
@@ -113,18 +153,30 @@ class ClientStore {
             [clientId]
         )).rows;
 
+        // If there is no logs, set the start timestamp to current timestamp
         if (logStartTimestampRes) {
             client.logStartTimestamp = logStartTimestampRes[0].timestamp;
         } else {
             client.logStartTimestamp = (new Date()).getTime();
         }
 
+        // Fetches the most recent logs from the database
         let latestLogs = await this.getLogs(clientId, -1);
         client.latestLogs = latestLogs;
 
         return client;
     }
 
+
+    /**
+     * Get logs from database by timestamp. 
+     * 
+     * If timestamp is a negative number, the function returns the most recent logs.
+     * 
+     * @param {string} clientId - Client id
+     * @param {number} timestamp - Log timestamp
+     * @returns {Promise<SpabLog[]>}
+     */
     public async getLogs(clientId: string, timestamp: number): Promise<SpabLog[]> {
         let logs: SpabLog[] = [];
 
@@ -132,10 +184,10 @@ class ClientStore {
             timestamp = Number.MAX_SAFE_INTEGER;
         }
 
+        // For each log type, fetches the most recent logs from the database
         let types = ['sensor', 'camera'];
-
         for (let type of types) {
-            let latestLogs = (await this._pool!.query(
+            let latestLogRows = (await this._pool!.query(
                 `SELECT DISTINCT ON ("typeId")
                     "timestamp",
                     "type",
@@ -150,25 +202,31 @@ class ClientStore {
                 [clientId, type, timestamp]
             )).rows;
 
-            for (let log of latestLogs) {
+            for (let logRow of latestLogRows) {
                 try {
                     logs.push({
-                        timestamp: log.timestamp,
-                        type: log.type,
-                        typeId: log.typeId,
-                        data: Buffer.from(log.data)
+                        timestamp: logRow.timestamp,
+                        type: logRow.type,
+                        typeId: logRow.typeId,
+                        data: Buffer.from(logRow.data)
                     });
-                } catch (e) {
-
-                }
+                } catch (e) { }
             }
         }
 
         return logs;
     }
 
+
+    /**
+     * Adds a socket id to a client
+     * 
+     * @param {string} clientId - Client id
+     * @param {string} socketId - Socket id
+     * @returns {boolean} - True if the operation is successful, otherwise, false
+     */
     public addClientSocketId(clientId: string, socketId: string): boolean {
-        let client = this._clientStore.get(clientId);
+        let client = this._clientMap.get(clientId);
         if (client) {
             client.socketIds.add(socketId);
             return true;
@@ -177,8 +235,16 @@ class ClientStore {
         return false;
     }
 
+
+    /**
+     * Removes a socket id from a client
+     * 
+     * @param {string} clientId - Client id
+     * @param {string} socketId - Socket id
+     * @returns {boolean} - True if the operation is successful, otherwise, false
+     */
     public removeClientSocketId(clientId: string, socketId: string): boolean {
-        let client = this._clientStore.get(clientId);
+        let client = this._clientMap.get(clientId);
         if (client) {
             client.socketIds.delete(socketId);
             return true;
@@ -187,10 +253,16 @@ class ClientStore {
         return false;
     }
 
-    public getClientList(): SpabClientSummary[] {
+
+    /**
+     * Gets client summary list
+     * 
+     * @returns {SpabClientSummary[]}
+     */
+    public getClientSummary(): SpabClientSummary[] {
         let clientList: SpabClientSummary[] = [];
 
-        for (let [clientId, client] of this._clientStore) {
+        for (let [clientId, client] of this._clientMap) {
             clientList.push({
                 clientId: clientId,
                 name: client.name,
@@ -202,22 +274,51 @@ class ClientStore {
         return clientList;
     }
 
+
+    /**
+     * Checks if the client exists
+     * 
+     * @param {string} clientId - Client id
+     * @returns {boolean} - True if the client exists, otherwise, false
+     */
     public isClientExist(clientId: string): boolean {
-        if (this._clientStore.has(clientId)) {
+        if (this._clientMap.has(clientId)) {
             return true;
         }
 
         return false;
     }
 
-    public getSocketIdCount(clientId: string): number {
-        return this._clientStore.get(clientId)?.socketIds.size || 0;
+
+    /**
+     * Gets client's socket count
+     * 
+     * @param {string} clientId - Client id
+     * @returns {number}
+     */
+    public getSocketCount(clientId: string): number {
+        return this._clientMap.get(clientId)?.socketIds.size || 0;
     }
 
+
+    /**
+     * Get the SpabClient object by client id
+     * 
+     * @param {string} clientId - Client id
+     * @returns {SpabClient | undefined} - 
+     * If the client exists, the function returns client's SpabClient object, otherwise, undefined.
+     */
     public getClient(clientId: string): SpabClient | undefined {
-        return this._clientStore.get(clientId);
+        return this._clientMap.get(clientId);
     }
 
+
+    /**
+     * 
+     * @param clientId 
+     * @param logClientEncoded 
+     * @returns 
+     */
     public async addLogEncoded(
         clientId: string,
         logClientEncoded: any
@@ -313,6 +414,13 @@ class ClientStore {
         return undefined;
     }
 
+
+    /**
+     * 
+     * @param clientId 
+     * @param spabLog 
+     * @returns 
+     */
     public getLogGui(
         clientId: string,
         spabLog: SpabLog
@@ -335,6 +443,12 @@ class ClientStore {
         return Buffer.from(SpabDataStruct.LogGui.encode(logGui).finish());
     }
 
+    
+    /**
+     * 
+     * @param log 
+     * @returns 
+     */
     private _updateLatestLog(
         log: DbLog
     ): SpabLog | undefined {
@@ -363,7 +477,7 @@ class ClientStore {
             ) {
                 if (log.timestamp && log.timestamp > spabLog.timestamp) {
                     spabLog.timestamp = log.timestamp;
-                    spabLog.data = log.data;
+                    spabLog.data = Buffer.from(log.data!);
                     return spabLog;
                 } else {
                     return;
@@ -377,7 +491,7 @@ class ClientStore {
                 type: log.type,
                 typeId: log.typeId!,
                 timestamp: log.timestamp!,
-                data: log.data
+                data: Buffer.from(log.data!)
             }
             spabClient.latestLogs.push(spabLog);
             return spabLog;

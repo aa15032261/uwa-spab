@@ -348,7 +348,7 @@ export class WebSocketApi {
 
             // return cmd data
             if (cmd === 'clients') {
-                ackResponse(this._clientStore.getClientList());
+                ackResponse(this._clientStore.getClientSummary());
             }
         });
 
@@ -526,7 +526,7 @@ export class WebSocketApi {
 
         // if the client is not connected to the server, 
         // ignore the function call
-        if (this._clientStore.getSocketIdCount(clientId) <= 0) {
+        if (this._clientStore.getSocketCount(clientId) <= 0) {
             return;
         }
 
