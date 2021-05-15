@@ -14,15 +14,17 @@ import { RestApi } from './RestApi';
 import { Pool } from 'pg';
 import { O_CREAT, O_SYNC, O_WRONLY } from 'constants';
 
-const pidPath = path.resolve(__dirname, '../spab_run.pid');
-
 main();
 
+/**
+ * spab-server entry point
+ */
 async function main() {
     try {
         const app = express();
         const httpServer = http.createServer(app);
     
+        // Creates a Postgres connection pool
         const pool = new Pool({
             host: DB_HOST,
             port: DB_PORT,
@@ -31,15 +33,15 @@ async function main() {
             password: DB_PASSWORD,
         });
     
-        // start app
+        // Initialises main components
         let sessionController = new SessionController();
         let loginController = new LoginController();
         let restApi = new RestApi(app, sessionController, loginController);
         let websocketApi = new WebSocketApi(httpServer, sessionController, loginController);
     
+        // Updates Postgres pool of all components
         sessionController.updateDbPool(pool);
         loginController.updateDbPool(pool);
-        restApi.updateDbPool(pool);
         websocketApi.updateDbPool(pool);
 
         httpServer.on('error', (err) => {
@@ -47,10 +49,14 @@ async function main() {
             process.exit();
         });
 
+        // If the web server is created successfully
         httpServer.listen(PORT, () => {
-            const pidPath = path.resolve(__dirname, '../spab_run.pid');
+
+            // Saves current process id to a file
+            let pidPath = path.resolve(__dirname, '../spab_run.pid');
             fs.writeFileSync(pidPath, process.pid.toString());
     
+            // Removes process id if the app is crashed
             ['exit', 'uncaughtException'].forEach((eventType) => {
                 process.on(eventType as any, (e) => {
                     try {
@@ -65,6 +71,7 @@ async function main() {
                 });
             });
         
+            // Removes process id if the app is interupted
             let signals: NodeJS.Signals[] = ['SIGABRT', 'SIGINT', 'SIGTERM', 'SIGUSR1', 'SIGUSR2', 'SIGXCPU'];
             signals.forEach((eventType) => {
                 process.on(eventType, (signal: NodeJS.Signals) => {
