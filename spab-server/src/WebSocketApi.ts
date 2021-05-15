@@ -53,7 +53,7 @@ export class WebSocketApi {
 
 
     /**
-     * Initialise a http server to handle WebSocket APIs
+     * WebSocketApi handles WebSocket APIs
      * 
      * @param {http.Server} httpServer 
      * @param {SessionController} sessionController 

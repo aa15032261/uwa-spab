@@ -8,12 +8,16 @@ import { LoginController, LoginStatus } from './LoginController';
 
 import { Validator } from 'jsonschema';
 import { SessionController, SessionStruct } from './SessionController';
-import { Pool } from 'pg';
 
 export class RestApi {
 
-    private _pool?: Pool;
-
+    /**
+     * RestApi handles REST APIs
+     * 
+     * @param {express.Express} app
+     * @param {SessionController} sessionController 
+     * @param {LoginController} loginController 
+     */
     constructor(
         app: express.Express,
         sessionController: SessionController,
@@ -22,8 +26,9 @@ export class RestApi {
         let sessionHandler = sessionController.getSessionHandler();
         let loginHandler = loginController.getLoginHandler();
 
+        // Redirects index page based on login status
         app.get(
-            [BASE_URL, BASE_URL + '/', BASE_URL + '/index.html.var', BASE_URL + '/s'],
+            [BASE_URL, BASE_URL + '/', BASE_URL + '/index.html.var'],
             sessionHandler,
             loginHandler,
             (
@@ -40,11 +45,11 @@ export class RestApi {
             }
         )
 
-        // spab-server static files
+        // spab-server static files (mainly for the login page)
         app.use(BASE_URL + '/static', express.static(path.resolve(__dirname, './../static')));
 
 
-        // spab-gui files
+        // spab-gui files route
         let spabGuiRouter = express.Router();
         let spabGuiRoute = express.static(path.resolve(__dirname, './../../spab-gui/dist'));
         spabGuiRouter.get(
@@ -56,6 +61,7 @@ export class RestApi {
                 res: express.Response,
                 next: express.NextFunction
             ) => {
+                // Only authenticated users can access app files
                 if ((req as any as LoginStatus).loginStatus?.loggedIn) { 
                     next();
                     return;
@@ -71,6 +77,7 @@ export class RestApi {
         app.use(BASE_URL + '/spab_gui', spabGuiRouter);
 
 
+        // handle login request
         app.post(
             BASE_URL + '/api/login',
             express.json(),
@@ -81,7 +88,7 @@ export class RestApi {
                 res: express.Response,
                 next: express.NextFunction
             ) => {
-                
+                // Validates api parameters
                 let valRes = (new Validator()).validate(
                     req.body,
                     {
@@ -107,6 +114,7 @@ export class RestApi {
                 req: express.Request, 
                 res: express.Response
             ) => {
+                // If the user is already logged in, returns successful
                 if ((req as any as LoginStatus).loginStatus?.loggedIn) {
                     // logged in
                     res.send({
@@ -115,8 +123,8 @@ export class RestApi {
                     return;
                 }
 
+                // Otherwise, verifies user credentials
                 let sessionStruct = (req.session as any)[SESSION_NAME] as SessionStruct;
-
                 let loginRes = await loginController.login(
                     req.body.email,
                     req.body.pass,
@@ -146,20 +154,19 @@ export class RestApi {
                 req: express.Request, 
                 res: express.Response
             ) => {
-                if ((req as any as LoginStatus).loginStatus?.loggedIn) {
-                    // logged in
+                // If the session doesnt exist, returns successful
+                if (!req.session || !(req.session as any)[SESSION_NAME]) {
                     res.send({
                         success: true
                     });
                     return;
                 }
 
+                // Otherwise, destroys session then returns successful
                 let sessionStruct = (req.session as any)[SESSION_NAME] as SessionStruct;
-
                 await loginController.logout(
                     sessionStruct
                 );
-
                 sessionController.destroyClientCookie(res);
 
                 res.send({
@@ -168,6 +175,7 @@ export class RestApi {
             }
         );
 
+        // Heartbeat API is used for checking current login status
         app.get(
             BASE_URL + '/api/heartbeat',
             express.json(),
@@ -180,6 +188,7 @@ export class RestApi {
             }
         );
 
+        // Catches all errors and returns error 500 to the user
         app.use((
             err: any, 
             req: express.Request, 
@@ -192,9 +201,5 @@ export class RestApi {
             }
             next();
         });
-    }
-
-    public updateDbPool(pool: Pool) {
-        this._pool = pool;
     }
 }

@@ -32,6 +32,9 @@ class SessionController {
     private _dataIv: Buffer;
     private _dataKey: Buffer;
 
+    /**
+     * SessionController manages session token of the application
+     */
     constructor () {
         let cookieIvHash = crypto.createHash('md5');
         cookieIvHash.update(SESSION_COOKIE_IV);
