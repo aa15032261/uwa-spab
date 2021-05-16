@@ -11,6 +11,20 @@ import { authenticator } from 'otplib';
 
 main();
 
+/**
+ * spab-server admin menu entry point
+ * 
+ * The admin menu provides the following functionalities:
+ * 
+ * 3871: Rebuild database
+ * 1: List users
+ * 2: Create a new user
+ * 3: Remove a user
+ * 4: List clients
+ * 5: Create a new client
+ * 6: Remove a client
+ * 7: Remove client's logs
+ */
 async function main() {
     try {
         const pool = new Pool({
