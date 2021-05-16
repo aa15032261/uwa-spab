@@ -1,11 +1,11 @@
 # spab-server
 This is the server side of the application handling database manipulation, WebSocket and REST APIs. 
 
-The app is written in TypeScript and targeted to run with NodeJS v14 and above.
+The app is written in TypeScript and targeted to run with NodeJS v14 and above, and PostgresSQL database 9.3 and above.
 
 
 ## Usage
-To run the app, we need to install all necessary dependencies by running the following command line:
+To run the app, you need to install all necessary dependencies by running the following command line:
 ```
 npm install
 ```
@@ -13,6 +13,45 @@ Then, run this command to start the app:
 ```
 node ./dist/index.js
 ```
+The server app depends on **spab-gui** and **spab-data-struct** sub-projects. Please ensure the server side maintains the following directory structure:  
+```
+├── spab-server  
+│   ├── dist  
+│   │   └── ...  
+│   ├── static  
+│   │   └── ...  
+│   ├── private  
+│   │   └── ...  
+│   ├── config.js  
+│   └── ...  
+├── spab-gui  
+│   └── dist  
+│       └── ...  
+└── spab-data-struct  
+    ├── SpabDataStruct.d.ts  
+    ├── SpabDataStruct.js  
+    └── ...  
+```
+
+## Admin Script
+The server app comes with an admin script for managing the database. To use the admin script, run the following command:
+```
+node ./dist/Admin.js
+```
+
+The script contains these options:
+```
+3871: Rebuild database
+1: List users
+2: Create a new user
+3: Remove a user
+4: List clients
+5: Create a new client
+6: Remove a client
+7: Remove client's logs
+```
+
+
 
 ## Compiling the app
 If you need to compile the app, you will need to install the **nodemon** and **tsc** packages globally:
@@ -25,7 +64,7 @@ npm run dev
 ```
 
 
-## Directories
+## Files and Directories
 The server app contains the following files and directories:
 
 | Name | Description |
