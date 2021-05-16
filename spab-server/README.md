@@ -35,7 +35,6 @@ The server app depends on **spab-gui** and **spab-data-struct** sub-projects. Pl
 
 ## Admin Script
 The server app comes with an admin script for managing the database. To use the admin script, run the following command:
-Then, run this command to start the app:
 ```
 node ./dist/Admin.js
 ```
