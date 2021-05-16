@@ -33,10 +33,15 @@ export class MainController {
 
     private _sensorTimer: NodeJS.Timeout | null = null;
 
+
+    /**
+     * MainController sends new data from CamControl and ArduPilotControl to the server.
+     * The data is cached locally if internet is unavailable.
+     */
     constructor() {
         this._logClientDb = new LogClientDb(LOG_DB_PATH, CLIENT_API_TOKEN);
 
-        //init ArduPilot Controller
+        // Initialises ArduPilotControl
         this._apControl = new ArduPilotControl(
             ARDUPILOT_COM_PATH,
             ARDUPILOT_COM_BAUD
@@ -51,7 +56,7 @@ export class MainController {
             this._handleNewRawData(data);
         }
 
-        // init cameras
+        // Initialises CamControl
         for (let camCfg of CAM_CFGS) {
             let camera = {
                 name: camCfg.name,
@@ -69,7 +74,7 @@ export class MainController {
             this._cameras.push(camera);
         }
 
-        // init socket io
+        // Intialises server connection
         this._socket = io(SERVER_URL, {
             path: CLIENT_WSAPI_PATH,
             rejectUnauthorized: false,
@@ -100,9 +105,8 @@ export class MainController {
             this._disconnectHandler(err);
         });
         this._socket.on('disconnect', (reason: string) => {
+            // Reconnects in 30 seconds if kicked by the server
             this._disconnectHandler(reason);
-
-            // reconnect in 30 seconds if kicked by the server
             setTimeout(() => {
                 // forces nodejs to get current system time
                 // as the login depends on totp
@@ -115,10 +119,10 @@ export class MainController {
         this._socket.on('polling', (isPolling: boolean, ackResponse: any) => {
             console.log('polling');
 
+            // Ack response
             if (!(ackResponse instanceof Function)) {
                 return;
             }
-
             ackResponse(true);
 
             this.isPolling = isPolling;
@@ -127,48 +131,78 @@ export class MainController {
         this._socket.on('passthrough', (isPassthrough: boolean, ackResponse: any) => {
             console.log('passthrough');
 
+            // Ack response
             if (!(ackResponse instanceof Function)) {
                 return;
             }
-
             ackResponse(true);
 
             this.isPassthrough = isPassthrough;
         });
 
+        // Sends mavlink raw data from passthrough socket to ardupilot
         this._socket.on('rawData', (data: Buffer) => {
             this._apControl.sendRawData(data);
         });
 
+        // Restarts event loop
         this._restartEventLoop();
     }
 
+
+    /**
+     * Handles server connect event
+     */
     private _connectHandler() {
         console.log('server connected');
 
+        // Clears send buffer
         this._socket.sendBuffer = [];
 
+        // Synchronises log cache with the server
         this._sync();
 
+        // Restarts event loop
         this._restartEventLoop();
     }
 
+    /**
+     * Handles server disconnect event
+     */
     private _disconnectHandler(err: any) {
         console.log('server disconnected');
+
+        // Disables polling and passthrough mode
         this.isPolling = false;
+        this.isPassthrough = false;
     };
 
+    /**
+     * Restarts event loop
+     */
     private _restartEventLoop() {
         this._cameraLoop();
         this._sensorLoop();
     }
 
-
+    /**
+     * Updates polling mode
+     */
     set isPolling(isPolling: boolean) {
         if (this._isPolling !== isPolling) {
 
             this._isPolling = isPolling;
 
+            // Updates data frequency based on current polling mode
+            // 
+            // NOTES: 
+            // While the app is in polling mode, imgInterval is set to a positive number and
+            // CamControl creates a background process to feed camera stream to the app, 
+            // which allows the app to get the camera stream much quicker but 
+            // it consumes more power since the camera stays on.
+            //
+            // Therefore, the app use a timer (the _cameraLoop function) to 
+            // get camera stream periodically if polling mode is off.
             for (let camera of this._cameras) {
                 if (isPolling) {
                     camera.camControl.imgInterval = CAM_ONLINE_INTERVAL;
@@ -183,14 +217,22 @@ export class MainController {
                 this._apControl.msgInterval = SNR_OFFLINE_INTERVAL;
             }
 
+            // Restarts event loop
             this._restartEventLoop();
         }
     }
 
+    /**
+     * Updates passthrough mode
+     */
     set isPassthrough(isPassthrough: boolean) {
         this._isPassthrough = isPassthrough;
     }
 
+    /**
+     * Checks if the client is connected to the server
+     * @returns {boolean} - True if the client is connected to the server, otherwise, false
+     */
     private _checkOnline(): boolean {
         if (this._socket.connected) {
             return true;
@@ -201,23 +243,49 @@ export class MainController {
         }
     }
 
+    /**
+     * Handles new camera data
+     * 
+     * @param {string} camName - Camera name
+     * @param {Buffer} camData - Camera data
+     */
     private _handleNewCameraData(camName: string, camData: Buffer) {
-        console.log('b'); 
-        this._handleNewData('camera', camName, camData);
+        this._handleNewLog('camera', camName, camData);
     }
 
+    /**
+     * Handles new sensor data
+     * 
+     * @param {string} snrName - Sensor name
+     * @param {Buffer} snrData - Sensor data
+     */
     private _handleNewSensorData(snrName: string, snrData: Buffer) {
-        console.log('a');
-        this._handleNewData('sensor', snrName, snrData);
+        this._handleNewLog('sensor', snrName, snrData);
     }
 
+    /**
+     * Handles new mavlink data
+     * 
+     * @param {Buffer} data - Sensor data
+     */
     private _handleNewRawData(data: Buffer) {
         if (this._isPassthrough) {
             this._socket.emit('rawData', data);
         }
     }
 
-    private _handleNewData(type: 'camera' | 'sensor', typeId: string, data: Buffer) {
+
+    /**
+     * Handles new logs
+     * 
+     * If the client is connected to the server, the function sends the log to the server directly.
+     * Otherwise, the log is saved to the local cache.
+     * 
+     * @param {'camera' | 'sensor'} type - Log type
+     * @param {string} typeId - Log type id
+     * @param {Buffer} data - Log data
+     */
+    private _handleNewLog(type: 'camera' | 'sensor', typeId: string, data: Buffer) {
         if (this._checkOnline()) {
             let log: SpabDataStruct.ILogClient = {
                 type: type,
@@ -230,6 +298,10 @@ export class MainController {
         }
     }
 
+
+    /**
+     * Camera data event loop. All camera related tasks should be handled here.
+     */
     private _cameraLoop() {
         if (this._cameraTimer) {
             clearTimeout(this._cameraTimer);
@@ -253,6 +325,9 @@ export class MainController {
         }, _timeout);
     }
 
+    /**
+     * Sensor data event loop. All sensor related tasks should be handled here.
+     */
     private _sensorLoop() {
         if (this._sensorTimer) {
             clearTimeout(this._sensorTimer);
@@ -273,9 +348,11 @@ export class MainController {
         }, _timeout);
     }
 
-
-
+    /**
+     * Start log synchronisation
+     */
     private _sync() {
+        // Runs only when synchronisation isnt running
         if (!this._syncTimer) {
             this._syncTimer = setTimeout(async () => {
                 await this._syncLoop();
@@ -283,23 +360,34 @@ export class MainController {
         }
     }
 
+    /**
+     * Log synchronisation loop
+     * 
+     * The synchronisation loop will stop if all logs in the cache are sent to the server.
+     */
     private async _syncLoop() {
         try {
             while (1) {
+                // Get the first log
                 let log = await this._logClientDb.getFirst();
 
+                // Checks if the client is connected to the server
                 if (log && this._checkOnline()) {
+                    // Encodes the log and sends it to the server
                     if (
                         (await this._sendMsgAck('log', [
                             SpabDataStruct.LogClient.encode(log!).finish()
                         ], true))
                     ) {
+                        // The log is successfully sent to the server, removes the log from the cache.
                         await this._logClientDb.remove(log.logId!, log.timestamp!, log.type!, log.typeId!);
                     } else {
                         throw 'network error';
                     }
                 } else {
+                    // Synchronisation completed
                     this._syncTimer = null;
+                    // Removes deleted logs from database permanently
                     this._logClientDb.vacuum();
                     break;
                 }
@@ -307,45 +395,62 @@ export class MainController {
         } catch (e) {
             console.log(e);
 
+            // Error occured, retries in 3 seconds
             this._syncTimer = setTimeout(async () => {
                 if (this._checkOnline()) {
                     await this._syncLoop();
                 } else {
                     this._syncTimer = null;
                 }
-            }, 1000);
+            }, 3000);
         }
     }
 
+    /**
+     * Send an event to the server
+     * 
+     * @param {string} evt - Event type
+     * @param {any[]} val - Event parameters
+     * @param {boolean} ack - True if the message requires an ack response, otherwise, false.
+     * @returns {Promise<any>} - Return response if the operation is succussful, otherwise, undefined
+     */
     private async _sendMsgAck(
         evt: string,
-        values: any[],
+        val: any[],
         ack: boolean
     ): Promise<any> {
         if (ack) {
             for (let i = 0; i < 3; i++) {
                 try {
-                    return await this._sendMsgAckOnce(evt, values, (i + 1) * 10000);
+                    return await this._sendMsgAckOnce(evt, val, (i + 1) * 10000);
                 } catch (e) { };
             }
         } else {
-            this._socket.emit(evt, ...values);
+            this._socket.emit(evt, ...val);
         }
 
         return;
     }
 
+    /**
+     * Send an event to the server once
+     * 
+     * @param {string} evt - Event type
+     * @param {any[]} val - Event parameters
+     * @param {number} timeout - Timeout for the operation
+     * @returns {Promise<any>} - Return response if the operation is succussful, otherwise, undefined
+     */
     private _sendMsgAckOnce(
         evt: string,
-        values: any[],
+        val: any[],
         timeout: number
     ): Promise<any> {
         return new Promise<any>((resolve, reject) => {
             setTimeout(() => {
-                reject()
+                reject('timeout')
             }, timeout);
 
-            this._socket.emit(evt, ...values, (res: any) => {
+            this._socket.emit(evt, ...val, (res: any) => {
                 resolve(res);
             });
         })
