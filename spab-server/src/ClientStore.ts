@@ -3,6 +3,7 @@ import { SpabDataStruct } from "./../../spab-data-struct/SpabDataStruct";
 
 
 interface DbLog extends SpabDataStruct.ILogClient {
+    /** Client id */
     clientId?: string
 }
 
@@ -302,7 +303,7 @@ class ClientStore {
 
 
     /**
-     * Get the SpabClient object by client id
+     * Gets the SpabClient object by client id
      * 
      * @param {string} clientId - Client id
      * @returns {SpabClient | undefined} - 
@@ -314,14 +315,17 @@ class ClientStore {
 
 
     /**
+     * Decodes a LogClient buffer and saves the log to the database
      * 
-     * @param clientId 
-     * @param logClientEncoded 
-     * @returns 
+     * @param {string} clientId - Client id
+     * @param {Buffer} logClientEncoded - LogClient buffer
+     * @returns {Promise<SpabLog | undefined>} - 
+     * If the log is successfully added to the database, the function returns the SpabLog object of the log,
+     * otherwise, undefined
      */
     public async addLogEncoded(
         clientId: string,
-        logClientEncoded: any
+        logClientEncoded: Buffer
     ): Promise<SpabLog | undefined> {
 
         let logClient: SpabDataStruct.ILogClient | undefined;
@@ -343,14 +347,14 @@ class ClientStore {
             }
 
             if (logClient.logId) {
-                // cached data
+                // Only cached logs have a log id
 
-                // invalid timestamp
+                // Checks if the timestamp is valid
                 if (logClient.timestamp! > (new Date()).getTime() + 5 * 60 * 1000) {
                     return;
                 }
 
-                // check if the cached log is in the database
+                // Checks if the cached log is already added to the database
                 let existingLog = (await this._pool!.query(
                     `SELECT "logId" FROM logs WHERE "clientId"=$1 AND "timestamp"=$2 AND "logId"=$3`,
                     [clientId, logClient.timestamp, logClient.logId]
@@ -360,7 +364,7 @@ class ClientStore {
                     return;
                 }
             } else {
-                // real time data
+                // Real time logs
                 logClient.timestamp = (new Date()).getTime();
                 delete logClient.logId;
             }
@@ -369,8 +373,8 @@ class ClientStore {
             let dbLog: DbLog = logClient;
             dbLog.clientId = clientId;
 
+            // Limiting the frequency of the logs based on the type
             let logFreq = 60 * 1000;
-
             if (logClient.type === 'camera') {
                 logFreq = 60 * 1000;
             } else if (logClient.type === 'sensor') {
@@ -382,12 +386,12 @@ class ClientStore {
             }
 
 
-            // forcefully remove deleted properties
+            // Removes deleted properties
             dbLog = {...dbLog};
 
             let lastLogTimestamp = 0;
             if (!logClient.logId) {
-                // find last log's timestamp
+                // Gets the most recent log's timestamp
                 let latestLog = (await this._pool!.query(
                     `SELECT MAX("timestamp") as "timestamp" FROM logs WHERE "clientId"=$1 AND "type"=$2 AND "typeId"=$3 AND "logId" IS NULL`,
                     [clientId, logClient.type, logClient.typeId]
@@ -416,10 +420,11 @@ class ClientStore {
 
 
     /**
+     * Creates a LogGui buffer from a SpabLog
      * 
-     * @param clientId 
-     * @param spabLog 
-     * @returns 
+     * @param {string} clientId - Client id
+     * @param {SpabLog} spabLog - SpabLog object
+     * @returns {Buffer} - LogGui buffer
      */
     public getLogGui(
         clientId: string,
@@ -445,9 +450,13 @@ class ClientStore {
 
     
     /**
+     * Inserts a DbLog to a client and updates its latestLogs array
      * 
-     * @param log 
-     * @returns 
+     * @param {DbLog} log - DbLog object
+     * @returns {SpabLog | undefined} - 
+     * If the inserting log is newer than the log in the latestLogs array, 
+     * the function returns the SpabLog object of the log,
+     * otherwise, undefined
      */
     private _updateLatestLog(
         log: DbLog
@@ -465,11 +474,13 @@ class ClientStore {
             return;
         }
 
+        // Checks with the timestamp of the first log
         if (log.timestamp! < spabClient.logStartTimestamp) {
             spabClient.logStartTimestamp = log.timestamp!;
         }
 
-        // update existing log
+        // If the log type exists in latestLogs array, 
+        // updates the existing object
         for (let spabLog of spabClient.latestLogs) {
             if (
                 log.type === spabLog.type &&
@@ -485,7 +496,8 @@ class ClientStore {
             }
         }
 
-        // insert log
+        // If the log type doesnt exist in latestLogs array,
+        // appends the log to the array
         if (log.type === 'camera' || log.type === 'sensor') {
             let spabLog: SpabLog = {
                 type: log.type,
