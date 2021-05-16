@@ -387,7 +387,7 @@ export class MainController {
                 } else {
                     // Synchronisation completed
                     this._syncTimer = null;
-                    // Removes deleted logs from database permanently
+                    // Removes deleted data from database permanently
                     this._logClientDb.vacuum();
                     break;
                 }
