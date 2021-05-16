@@ -17,7 +17,7 @@ import { O_CREAT, O_SYNC, O_WRONLY } from 'constants';
 main();
 
 /**
- * spab-server entry point
+ * spab-server app entry point
  */
 async function main() {
     try {
