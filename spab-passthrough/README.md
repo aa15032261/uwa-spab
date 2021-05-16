@@ -25,7 +25,7 @@ npm run dev
 ```
 
 
-## Directories
+## Files and directories
 The server app contains the following files and directories:
 
 | Name | Description |
