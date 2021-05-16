@@ -193,7 +193,7 @@ export class MainController {
 
             this._isPolling = isPolling;
 
-            // Updates data frequency based on current polling mode
+            // Updates data interval based on current polling mode
             // 
             // NOTES: 
             // While the app is in polling mode, imgInterval is set to a positive number and
