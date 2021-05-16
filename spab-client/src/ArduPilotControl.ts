@@ -5,6 +5,7 @@ import * as Serialport from 'serialport';
 
 // mavlink message definition files is generated with the offical mavlink package:
 // See http://mavlink.io/en/getting_started/generate_libraries.html for more info.
+// See https://github.com/ArduPilot/pymavlink for more info.
 //
 // Command to generate message definition library for TypeScript
 // python3 -m pymavlink.tools.mavgen --lang=TypeScript --wire-protocol=2.0 ./message_definitions/v1.0/ardupilotmega.xml -o ~/output
