@@ -1,12 +1,10 @@
 import * as childProcess from 'child_process';
-import * as stream from 'stream';
-//import * as mozjpeg from 'mozjpeg';
 
 export class CamControl {
 
     private static MAX_BUFFER_SIZE = 64 * 1024;
 
-    private _f: ReadonlyArray<string> = [];
+    private _cfg: ReadonlyArray<string> = [];
     private _imgCallback: ((buf: Buffer) => void) | undefined;
 
 
@@ -19,6 +17,46 @@ export class CamControl {
     private _restartTimer: NodeJS.Timeout | undefined;
     private _startTimer: NodeJS.Timeout | undefined;
 
+
+    /**
+     * CamControl manages camera streams via ffmpeg
+     * 
+     * @param {Array<string>} cfg - Camera's ffmpeg flags 
+     */
+    constructor (cfg: ReadonlyArray<string>) {
+        this._cfg = cfg;
+    }
+
+    /**
+     * Image stream callback
+     */
+    set imgCallback(imgCallback: (buf: Buffer) => void) {
+        this._imgCallback = imgCallback;
+    }
+
+    /**
+     * Image stream interval
+     * 
+     * When imgInterval is set to a positive number, 
+     * CamControl creates a ffmpeg background process to 
+     * feed camera stream to the image stream callback function. 
+     */
+    set imgInterval(imgInterval: number) {
+        if (imgInterval <= 0 ) {
+            if (this._ffmpegProcess && !this._ffmpegProcess.killed) {
+                this._ffmpegProcess.kill('SIGABRT');
+            }
+            this._imgInterval = -1;
+        } else if (this._imgInterval !== imgInterval) {
+            this._imgInterval = imgInterval;
+            this._restartFFMpeg();
+        }
+    }
+
+    /**
+     * Calls imgCallback after a small timeout. This function is used to 
+     * ensure the entire image buffer is received before calling imgCallback.
+     */
     private _callImgCallbackOnTimeout() {
         if (this._imgTimer) {
             clearTimeout(this._imgTimer);
@@ -27,32 +65,29 @@ export class CamControl {
         this._imgTimer = setTimeout(async () => {
             if (this._imgCallback) {
                 this._imgCallback(this._imgBuf);
-                // let mozJpegProcess = childProcess.spawnSync(
-                //     mozjpeg,
-                //     ['-quality', '55'],
-                //     {
-                //         shell: false,
-                //         input: this._imgBuf
-                //     }
-                // );
-                // this._imgCallback(mozJpegProcess.stdout);
             }
             this._imgBuf = Buffer.alloc(0);
             this._imgTimer = undefined;
-        }, 33);
+        }, 25);
     }
 
+    /**
+     * Restarts the ffmpeg process.
+     */
     private _restartFFMpeg() {
+        // Clears ffmpeg start timer
         if (this._startTimer) {
             clearTimeout(this._startTimer);
         }
 
         if (!this._ffmpegProcess) {
+            // If ffmpeg is not running, starts the process immediately
             this._startTimer = setTimeout(() => {
                 this._startFFMpeg();
                 this._startTimer = undefined;
-            }, 500);
+            }, 200);
         } else {
+            // If ffmpeg is running, kills the process immediately
             if (!this._ffmpegProcess.killed) {
                 this._ffmpegProcess.kill('SIGABRT');
 
@@ -62,49 +97,55 @@ export class CamControl {
                 }
             }
 
+            // Creates a ffmpeg restart timer to restart the process
             if (this._restartTimer) {
                 clearTimeout(this._restartTimer);
             }
-
             this._restartTimer = setTimeout(() => {
-                if (this._ffmpegProcess) {
-                    this._restartFFMpeg();
-                } else {
-                    this._startTimer = setTimeout(() => {
-                        this._startFFMpeg();
-                        this._startTimer = undefined;
-                    }, 500);
-                }
+                this._restartFFMpeg();
                 this._restartTimer = undefined;
-            }, 500);
+            }, 200);
         }
     }
 
+
+    /**
+     * Starts the ffmpeg process.
+     */
     private _startFFMpeg() {
         if (!this._ffmpegProcess) {
 
             let vfOptions: string[];
 
             if (this._imgInterval > 0) {
+                // Gets frames at interval specified by _imgInterval
                 vfOptions = ['-r', (1000 / this._imgInterval).toFixed(2)];
             } else {
+                // Gets one frame
                 vfOptions = ['-vframes', '1'];
             }
 
+            // Creates a ffmpeg process
             this._ffmpegProcess = childProcess.spawn(
                 'ffmpeg',
                 [
-                    '-loglevel', 'quiet',
-                    '-f', ...this._f,
-                    ...vfOptions,
-                    '-q:v', '12',
-                    '-f', 'mjpeg', '-'
+                    '-loglevel', 'quiet',   // Hides all console messages
+
+                    '-f', ...this._cfg,     // Camera parameters
+
+                    ...vfOptions,           // Frame per second option
+
+                    '-q:v', '12',           // Image quality with value from 1-31, 
+                                            // where 1 is the best and 31 is the worst
+
+                    '-f', 'mjpeg', '-'      // Output each frame as jpeg to stdout
                 ],
                 {
                     shell: false
                 }
             );
     
+            // Appends ffmpeg output to _imgBuf
             this._ffmpegProcess.stdout.on('data', (chunk: Buffer) => {
                 if (this._imgBuf.length + chunk.length <= CamControl.MAX_BUFFER_SIZE) {
                     this._imgBuf = Buffer.concat([this._imgBuf, chunk]);
@@ -118,6 +159,7 @@ export class CamControl {
                 this._callImgCallbackOnTimeout();
             });
 
+            // Monitors the process, restarts on crashes.
             this._ffmpegProcess.on('exit', (code: number) => {
                 this._ffmpegProcess = undefined;
 
@@ -128,29 +170,12 @@ export class CamControl {
         }
     }
 
+    /**
+     * Gets a single frame from the camera
+     */
     public takePicture() {
         if (this._imgInterval <= 0) {
             this._startFFMpeg();
-        }
-    }
-
-    constructor (f: ReadonlyArray<string>) {
-        this._f = f;
-    }
-
-    set imgCallback(imgCallback: (buf: Buffer) => void) {
-        this._imgCallback = imgCallback;
-    }
-
-    set imgInterval(imgInterval: number) {
-        if (imgInterval <= 0 ) {
-            if (this._ffmpegProcess && !this._ffmpegProcess.killed) {
-                this._ffmpegProcess.kill('SIGABRT');
-            }
-            this._imgInterval = -1;
-        } else if (this._imgInterval !== imgInterval) {
-            this._imgInterval = imgInterval;
-            this._restartFFMpeg();
         }
     }
 }
