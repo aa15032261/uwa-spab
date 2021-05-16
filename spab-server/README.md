@@ -14,7 +14,7 @@ Then, run this command to start the app:
 node ./dist/index.js
 ```
 
-## Compilation
+## Compiling the app
 If you need to compile the app, you will need to install the **nodemon** and **tsc** packages globally:
 ```
 npm install nodemon tsc -g
