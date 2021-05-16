@@ -13,6 +13,25 @@ Then, run this command to start the app:
 ```
 node ./dist/index.js
 ```
+The server app depends on **spab-gui** and **spab-data-struct** sub-projects. Please ensure the server side maintains the following directory structure:  
+```
+├── spab-server  
+│   ├── dist  
+│   │   └── ...  
+│   ├── static  
+│   │   └── ...  
+│   ├── private  
+│   │   └── ...  
+│   ├── config.js  
+│   └── ...  
+├── spab-gui  
+│   └── dist  
+│       └── ...  
+└── spab-data-struct  
+    ├── SpabDataStruct.d.ts  
+    ├── SpabDataStruct.js  
+    └── ...  
+```
 
 ## Compiling the app
 If you need to compile the app, you will need to install the **nodemon** and **tsc** packages globally:
@@ -25,7 +44,7 @@ npm run dev
 ```
 
 
-## Directories
+## Files and Directories
 The server app contains the following files and directories:
 
 | Name | Description |
