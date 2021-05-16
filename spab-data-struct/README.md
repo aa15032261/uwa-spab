@@ -1,5 +1,5 @@
 # spab-data-struct
-This directory contains data structure used in data transmission between the server, gui and client. 
+This directory contains the data structure used in data transmission between the server, gui and client. 
 
 ## Protocol Buffer
 Protocol Buffer is used for data transmission in the application because 
