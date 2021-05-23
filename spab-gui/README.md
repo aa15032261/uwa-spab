@@ -21,7 +21,7 @@ Learn more about Angular here:
 https://angular.io/guide/setup-local
 
 
-## Files
+## Directories and files
 | Name | Description |
 | - | - |
 | ./dist                    | Precompiled GUI |
