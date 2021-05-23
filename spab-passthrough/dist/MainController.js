@@ -7,9 +7,12 @@ const otplib_1 = require("otplib");
 const socket_io_client_1 = require("socket.io-client");
 const net = require("net");
 class MainController {
+    /**
+     * MainController handles mavlink data passthrough
+     */
     constructor() {
         this._localSockets = new Set();
-        // init socket io
+        // Initialise the passthrough socket
         this._socket = socket_io_client_1.io(SERVER_URL, {
             path: PASSTHROUGH_WSAPI_PATH,
             rejectUnauthorized: false,
@@ -27,8 +30,10 @@ class MainController {
                 cb(authObj);
             }
         });
+        // Creates a local tcp socket
         let server = net.createServer((socket) => {
             this._localSockets.add(socket);
+            // send all data to the passthrough socket
             socket.on('data', (data) => {
                 if (this._checkOnline()) {
                     this._socket.emit('rawData', data);
@@ -50,12 +55,13 @@ class MainController {
             this._disconnectHandler(err);
         });
         this._socket.on('disconnect', (reason) => {
+            // Reconnects in 30 seconds if kicked by the server
             this._disconnectHandler(reason);
-            // reconnect in 30 seconds if kicked by the server
             setTimeout(() => {
                 this._socket.connect();
             }, 30000);
         });
+        // Sends data to local tcp socket
         this._socket.on('rawData', (data) => {
             for (let socket of this._localSockets) {
                 socket.write(data);
@@ -70,6 +76,10 @@ class MainController {
         console.log('server disconnected');
     }
     ;
+    /**
+     * Checks if the passthrough socket is connected to the server
+     * @returns {boolean} - True if the socket is connected to the server, otherwise, false
+     */
     _checkOnline() {
         if (this._socket.connected) {
             return true;

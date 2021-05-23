@@ -14,7 +14,7 @@ main();
 /**
  * spab-server admin menu entry point
  * 
- * The admin menu provides the following options:
+ * The admin menu contains the following options:
  * 
  * 3871: Rebuild database
  * 1: List users
