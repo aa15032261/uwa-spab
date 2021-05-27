@@ -57,7 +57,7 @@ Stop the server software:
 ```
 ./php/spab_run.php?type=stop
 ```
-We realise that the PHP process on Bluehost is running as root, so we wrote a PHP script to control Nodejs processes.
+We have found that the PHP process on Bluehost is running as root, so we wrote a PHP script to control Nodejs processes.
 
 
 ## Admin Script
