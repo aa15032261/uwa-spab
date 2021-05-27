@@ -3,8 +3,8 @@
 ## Sub-projects
 | Name | Description |
 | - | - |
-| [spab-server](spab-server/README.md)           | Code for the server |
-| [spab-client](spab-client/README.md)           | Code for the boat   |
-| [spab-passthrough](spab-passthrough/README.md) | Code for handling mavlink passthrough running on the user's computer |
-| [spab-gui](spab-gui/README.md)                 | Code for GUI |
-| [spab-data-struct](spab-data-struct/README.md) | Protobuf data structure definition |
+| [spab-server](https://github.com/aa15032261/uwa-spab/tree/main/spab-server)           | Code for the server |
+| [spab-client](https://github.com/aa15032261/uwa-spab/tree/main/spab-client)           | Code for the boat   |
+| [spab-passthrough](https://github.com/aa15032261/uwa-spab/tree/main/spab-passthrough) | Code for handling mavlink passthrough running on the user's computer |
+| [spab-gui](https://github.com/aa15032261/uwa-spab/tree/main/spab-gui)                 | Code for GUI |
+| [spab-data-struct](https://github.com/aa15032261/uwa-spab/tree/main/spab-data-struct) | Protobuf data structure definition |
