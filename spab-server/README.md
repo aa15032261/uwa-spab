@@ -13,7 +13,7 @@ Then, run this command to start the app:
 ```
 node ./dist/index.js
 ```
-The server app depends on **spab-gui** and **spab-data-struct** sub-projects. Please ensure the server side maintains the following directory structure:  
+The server app requires **spab-gui** and **spab-data-struct** sub-projects to run and compile. Please ensure the server side maintains the following directory structure:  
 ```
 ├── spab-server  
 │   ├── dist  
