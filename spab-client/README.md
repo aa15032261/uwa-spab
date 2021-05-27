@@ -9,6 +9,19 @@ To run the app, you need to install all necessary dependencies by running the fo
 ```
 npm install
 ```
+
+The client app depends on spab-data-struct sub-project. Please ensure the client side maintains the following directory structure:
+```
+├── spab-client  
+│   ├── dist  
+│   │   └── ...  
+│   ├── config.js  
+│   └── ...  
+└── spab-data-struct  
+    ├── SpabDataStruct.d.ts  
+    ├── SpabDataStruct.js  
+    └── ...  
+```
 Then, run this command to start the app:
 ```
 node ./dist/index.js
