@@ -11,7 +11,7 @@ Then, install app dependencies:
 ```
 npm install
 ```
-The GUI requires spab-data-struct sub-project to compile. Please ensure the GUI maintains the following directory structure:
+The GUI requires **spab-data-struct** sub-project to compile. Please ensure the GUI maintains the following directory structure:
 ```
 ├── spab-gui  
 │   └── ...  
