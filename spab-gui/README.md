@@ -11,7 +11,17 @@ Then, install app dependencies:
 ```
 npm install
 ```
-  
+The GUI requires spab-data-struct sub-project to compile. Please ensure the GUI maintains the following directory structure:
+```
+├── spab-gui  
+│   └── ...  
+└── spab-data-struct  
+    ├── SpabDataStruct.d.ts  
+    ├── SpabDataStruct.js  
+    └── ...  
+```
+
+
 To build the app, run:
 ```
 ng build --prod
