@@ -33,8 +33,10 @@ The server app requires **spab-gui** and **spab-data-struct** sub-projects to ru
     └── ...  
 ```
 
+Since it is impossible to setup a start-up task on the Bluehost server, a cron job is created to start the software automatically when it is stopped. Please keep in mind that each cron job is running in a container so there is no way to stop a cron job. However, the provided PHP script can be used as a workaround.
+
 ## PHP Script for starting and stopping the software remotely
-There is a PHP script named **spab_run.php** in the php directory for starting and stopping the server software remotely. It is not recommanded to use it in production environment but it is convenient for debugging. It supports three APIs:
+There is a PHP script named **spab_run.php** in the php directory for starting and stopping the server software remotely. It is not recommanded to use it in production environment but it is convenient for debugging. It supports these APIs:
  
 List all running process on the server:
 ```
@@ -55,6 +57,7 @@ Stop the server software:
 ```
 ./php/spab_run.php?type=stop
 ```
+We realise that the PHP process on Bluehost is running as root, so we wrote a PHP script to control Nodejs processes.
 
 
 ## Admin Script
