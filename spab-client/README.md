@@ -10,7 +10,7 @@ To run the app, you need to install all necessary dependencies by running the fo
 npm install
 ```
 
-The client app requires spab-data-struct sub-project to run and compile. Please ensure the client side maintains the following directory structure:
+The client app requires **spab-data-struct** sub-project to run and compile. Please ensure the client side maintains the following directory structure:
 ```
 ├── spab-client  
 │   ├── dist  
