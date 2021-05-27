@@ -33,6 +33,30 @@ The server app requires **spab-gui** and **spab-data-struct** sub-projects to ru
     └── ...  
 ```
 
+## PHP Script for starting and stopping the software remotely
+There is a PHP script named **spab_run.php** in the php directory for starting and stopping the server software remotely. It is not recommanded to use it in production environment but it is convenient for debugging. It supports three APIs:
+ 
+List all running process on the server:
+```
+./php/spab_run.php?type=list
+```
+
+Kill all nodejs process:
+```
+./php/spab_run.php?type=killnode
+```
+
+Restart the server software:
+```
+./php/spab_run.php?type=restart
+```
+
+Stop the server software:
+```
+./php/spab_run.php?type=stop
+```
+
+
 ## Admin Script
 The server app comes with an admin script for managing the database. To use the admin script, run the following command:
 ```
