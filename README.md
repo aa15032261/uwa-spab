@@ -1,4 +1,17 @@
 # uwa-spab
+A software engineering design project at the University of Western Australia.
+
+Project Sponsor: Prof. Thomas Braunl
+
+Team members:
+- Dylan Carpenter
+- Tom Chan
+- Lucie Cunningham
+
+Detailed documentation is available in each of the sub-project directories, and a user manual is
+located in the `documentation` folder.
+
+A video presentation about the project is available [here](https://youtu.be/oJaxUYEJGEg "Video Presentation (YouTube)").
 
 ## Sub-projects
 | Name | Description |
